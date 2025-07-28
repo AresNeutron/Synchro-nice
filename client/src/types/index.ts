@@ -1,0 +1,60 @@
+// Tipos que coinciden con el backend Python
+
+export interface AudioChunkData {
+  timestamp: number;
+  frequencies: number[]; // 20 bandas de frecuencia
+  amplitude: number; // 0.0 a 1.0
+  brightness: number; // Centroide espectral normalizado
+  energy_center: number; // Frecuencia donde está la energía (Hz)
+  is_percussive: boolean; // Si hay percusión en este chunk
+  rolloff: number; // Rolloff espectral
+  zero_crossing_rate: number; // Tasa de cruces por cero
+}
+
+export interface AudioProcessingStatus {
+  status: 'processing' | 'completed' | 'error' | 'ready';
+  progress: number; // 0.0 a 1.0
+  total_chunks: number;
+  processed_chunks: number;
+  duration: number; // Duración total en segundos
+}
+
+export interface WebSocketMessage {
+  type: 'chunk_data' | 'status' | 'error';
+  data: AudioChunkData | AudioProcessingStatus | { message: string };
+}
+
+export interface AudioFileInfo {
+  filename: string;
+  duration: number;
+  sample_rate: number;
+  channels: number;
+  file_path: string;
+}
+
+export interface UploadResponse {
+  session_id: string;
+  file_info: AudioFileInfo;
+  total_chunks: number;
+}
+
+// Estados de la aplicación
+export type AppState = 'idle' | 'uploading' | 'processing' | 'playing' | 'paused' | 'error';
+
+// Configuración del visualizador
+export interface VisualizerConfig {
+  numParticles: number;
+  bassRange: [number, number]; // Índices de frecuencias graves
+  midRange: [number, number]; // Índices de frecuencias medias
+  highRange: [number, number]; // Índices de frecuencias agudas
+}
+
+
+export interface UseWebSocketReturn {
+  connect: (sessionId: string) => void;
+  disconnect: () => void;
+  isConnected: boolean;
+  chunks: AudioChunkData[];
+  status: AudioProcessingStatus | null;
+  error: string | null;
+}
