@@ -2,6 +2,7 @@ import librosa
 import numpy as np
 from typing import List, Generator
 import soundfile as sf
+from typing import Tuple
 from models.models import AudioChunkData, AudioFileInfo
 
 class AudioProcessor:
@@ -11,7 +12,7 @@ class AudioProcessor:
         self.hop_length = 512  # Salto entre ventanas para análisis
         self.n_frequency_bands = 20  # Número de bandas de frecuencia que extraemos
     
-    def load_audio(self, file_path: str) -> AudioFileInfo:
+    def load_audio(self, file_path: str) -> Tuple[AudioFileInfo, np.ndarray, int | float]:
         """Carga el archivo de audio y extrae información básica"""
         # Cargar audio con librosa (convierte automáticamente a mono si es estéreo)
         y, sr = librosa.load(file_path, sr=None)  # sr=None preserva la frecuencia original

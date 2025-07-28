@@ -5,7 +5,8 @@ import os
 import tempfile
 import json
 from audio_processor import AudioProcessor
-from models.models import WebSocketMessage, AudioProcessingStatus
+from models.models import WebSocketMessage, AudioProcessingStatus, AudioChunkData
+from typing import List, Dict
 
 app = FastAPI()
 
@@ -21,7 +22,7 @@ app.add_middleware(
 audio_processor = AudioProcessor(chunk_duration=0.2)
 
 # Almacenamiento temporal de datos procesados
-processed_audio_data = {}  # {session_id: [AudioChunkData, ...]}
+processed_audio_data: Dict[str, List[AudioChunkData]] = {}  # {session_id: [AudioChunkData, ...]}
 current_sessions = {}  # {session_id: {"file_info": ..., "status": ...}}
 
 @app.post("/upload")
@@ -72,7 +73,7 @@ async def upload_audio(file: UploadFile = File(...)):
         
         return {
             "session_id": session_id,
-            "file_info": file_info.dict(),
+            "file_info": file_info.model_dump(),
             "total_chunks": total_chunks
         }
         
@@ -102,7 +103,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         session_data = current_sessions[session_id]
         audio_data = session_data["audio_data"]
         sample_rate = session_data["sample_rate"]
-        status = session_data["status"]
+        status: AudioProcessingStatus = session_data["status"]
         
         # Actualizar estado a "procesando"
         status.status = "processing"
@@ -111,12 +112,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.send_text(
             WebSocketMessage(
                 type="status",
-                data=status.dict()
+                data=status.model_dump()
             ).to_json()
         )
         
         # Buffer para almacenar chunks procesados
-        chunk_buffer = []
+        chunk_buffer: List[AudioChunkData] = []
         buffer_size = 10  # Procesar 10 chunks adelantados
         
         # Procesar audio en chunks
@@ -140,7 +141,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 for buffered_chunk in chunk_buffer:
                     message = WebSocketMessage(
                         type="chunk_data",
-                        data=buffered_chunk.dict()
+                        data=buffered_chunk.model_dump()
                     )
                     await websocket.send_text(message.to_json())
                     
@@ -154,7 +155,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 await websocket.send_text(
                     WebSocketMessage(
                         type="status",
-                        data=status.dict()
+                        data=status.model_dump()
                     ).to_json()
                 )
         
@@ -163,7 +164,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.send_text(
             WebSocketMessage(
                 type="status",
-                data=status.dict()
+                data=status.model_dump()
             ).to_json()
         )
         
@@ -199,7 +200,7 @@ async def get_processed_chunks(session_id: str):
     return {
         "session_id": session_id,
         "total_chunks": len(chunks),
-        "chunks": [chunk.dict() for chunk in chunks]
+        "chunks": [chunk.model_dump() for chunk in chunks]
     }
 
 if __name__ == "__main__":
