@@ -1,18 +1,11 @@
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
-import * as THREE from 'three';
-import type { AudioChunkData, VisualizerConfig } from '../types';
+import { useRef, useEffect, useCallback, useMemo } from "react";
+import * as THREE from "three";
+import type { AudioChunkData, VisualizerConfig } from "../types";
+import { useAppContext } from "../context/AppContext";
 
-interface VisualizerSceneProps {
-  chunks: AudioChunkData[];
-  currentTime: number; // Tiempo actual del audio en segundos
-  isPlaying: boolean;
-}
+export const VisualizerScene = () => {
+  const { chunks, currentTime, isPlaying } = useAppContext();
 
-export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
-  chunks,
-  currentTime,
-  isPlaying
-}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<{
     scene: THREE.Scene;
@@ -25,12 +18,15 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
   } | null>(null);
 
   // Configuración del visualizador
-  const config: VisualizerConfig = useMemo(()=> ({
-    numParticles: 1000,
-    bassRange: [0, 4], // Primeras 5 bandas para graves
-    midRange: [5, 14], // 10 bandas para medios
-    highRange: [15, 19] // Últimas 5 bandas para agudos
-  }), []);
+  const config: VisualizerConfig = useMemo(
+    () => ({
+      numParticles: 1000,
+      bassRange: [0, 4], // Primeras 5 bandas para graves
+      midRange: [5, 14], // 10 bandas para medios
+      highRange: [15, 19], // Últimas 5 bandas para agudos
+    }),
+    []
+  );
 
   // Inicializar escena Three.js
   const initScene = useCallback(() => {
@@ -52,40 +48,49 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
     // Crear renderer
     const renderer = new THREE.WebGLRenderer({
       canvas: canvasRef.current,
-      antialias: true
+      antialias: true,
     });
-    renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
+    renderer.setSize(
+      canvasRef.current.clientWidth,
+      canvasRef.current.clientHeight
+    );
 
     // Crear sistema de partículas para efectos OSU-style
     const particles: THREE.Points[] = [];
     const particleGeometry = new THREE.BufferGeometry();
     const particleCount = config.numParticles;
-    
+
     // Posiciones iniciales aleatorias de partículas
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
-    
+
     for (let i = 0; i < particleCount; i++) {
       positions[i * 3] = (Math.random() - 0.5) * 10; // X
       positions[i * 3 + 1] = (Math.random() - 0.5) * 10; // Y
       positions[i * 3 + 2] = (Math.random() - 0.5) * 5; // Z
-      
+
       // Colores iniciales
       colors[i * 3] = Math.random(); // R
       colors[i * 3 + 1] = Math.random(); // G
       colors[i * 3 + 2] = Math.random(); // B
     }
-    
-    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    
+
+    particleGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(positions, 3)
+    );
+    particleGeometry.setAttribute(
+      "color",
+      new THREE.BufferAttribute(colors, 3)
+    );
+
     const particleMaterial = new THREE.PointsMaterial({
       size: 0.05,
       vertexColors: true,
       transparent: true,
-      opacity: 0.8
+      opacity: 0.8,
     });
-    
+
     const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
     scene.add(particleSystem);
     particles.push(particleSystem);
@@ -97,16 +102,16 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
       const sphereMaterial = new THREE.MeshBasicMaterial({
         color: new THREE.Color().setHSL(0.6, 1, 0.5), // Azul para graves
         transparent: true,
-        opacity: 0.7
+        opacity: 0.7,
       });
       const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-      
+
       // Posicionar esferas en círculo
       const angle = (i / 5) * Math.PI * 2;
       sphere.position.x = Math.cos(angle) * 2;
       sphere.position.y = Math.sin(angle) * 2;
       sphere.position.z = 0;
-      
+
       scene.add(sphere);
       spheres.push(sphere);
     }
@@ -118,15 +123,15 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
       const cubeMaterial = new THREE.MeshBasicMaterial({
         color: new THREE.Color().setHSL(0.1, 1, 0.5), // Amarillo para agudos
         transparent: true,
-        opacity: 0.8
+        opacity: 0.8,
       });
       const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-      
+
       // Posicionar cubos aleatoriamente
       cube.position.x = (Math.random() - 0.5) * 6;
       cube.position.y = (Math.random() - 0.5) * 6;
       cube.position.z = (Math.random() - 0.5) * 2;
-      
+
       scene.add(cube);
       cubes.push(cube);
     }
@@ -139,19 +144,18 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
       particles,
       spheres,
       cubes,
-      animationId: null
+      animationId: null,
     };
-
   }, [config.numParticles]);
 
   // Encontrar el chunk más cercano al tiempo actual
   const getCurrentChunk = useCallback((): AudioChunkData | null => {
     if (chunks.length === 0) return null;
-    
+
     // Buscar el chunk cuyo timestamp sea más cercano al currentTime
     let closestChunk = chunks[0];
     let minDiff = Math.abs(closestChunk.timestamp - currentTime);
-    
+
     for (const chunk of chunks) {
       const diff = Math.abs(chunk.timestamp - currentTime);
       if (diff < minDiff) {
@@ -159,7 +163,7 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
         closestChunk = chunk;
       }
     }
-    
+
     // Solo devolver el chunk si está dentro de un rango razonable
     return minDiff <= 0.2 ? closestChunk : null;
   }, [chunks, currentTime]);
@@ -173,29 +177,35 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
     if (!currentChunk) return;
 
     // Calcular energías por rango de frecuencia
-    const bassEnergy = currentChunk.frequencies
-      .slice(config.bassRange[0], config.bassRange[1] + 1)
-      .reduce((sum, freq) => sum + freq, 0) / (config.bassRange[1] - config.bassRange[0] + 1);
-    
-    const midEnergy = currentChunk.frequencies
-      .slice(config.midRange[0], config.midRange[1] + 1)
-      .reduce((sum, freq) => sum + freq, 0) / (config.midRange[1] - config.midRange[0] + 1);
-    
-    const highEnergy = currentChunk.frequencies
-      .slice(config.highRange[0], config.highRange[1] + 1)
-      .reduce((sum, freq) => sum + freq, 0) / (config.highRange[1] - config.highRange[0] + 1);
+    const bassEnergy =
+      currentChunk.frequencies
+        .slice(config.bassRange[0], config.bassRange[1] + 1)
+        .reduce((sum, freq) => sum + freq, 0) /
+      (config.bassRange[1] - config.bassRange[0] + 1);
+
+    const midEnergy =
+      currentChunk.frequencies
+        .slice(config.midRange[0], config.midRange[1] + 1)
+        .reduce((sum, freq) => sum + freq, 0) /
+      (config.midRange[1] - config.midRange[0] + 1);
+
+    const highEnergy =
+      currentChunk.frequencies
+        .slice(config.highRange[0], config.highRange[1] + 1)
+        .reduce((sum, freq) => sum + freq, 0) /
+      (config.highRange[1] - config.highRange[0] + 1);
 
     // Actualizar esferas (graves)
     scene.spheres.forEach((sphere) => {
       const scale = 1 + bassEnergy * 3; // Escalar según energía de graves
       sphere.scale.setScalar(scale);
-      
+
       // Rotar si hay percusión
       if (currentChunk.is_percussive) {
         sphere.rotation.x += 0.1;
         sphere.rotation.y += 0.1;
       }
-      
+
       // Cambiar color según brillo
       const material = sphere.material as THREE.MeshBasicMaterial;
       material.color.setHSL(0.6, 1, 0.3 + currentChunk.brightness * 0.4);
@@ -205,28 +215,30 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
     scene.cubes.forEach((cube) => {
       const scale = 1 + highEnergy * 2;
       cube.scale.setScalar(scale);
-      
+
       // Movimiento más errático para agudos
       cube.rotation.x += highEnergy * 0.2;
       cube.rotation.y += highEnergy * 0.15;
       cube.rotation.z += highEnergy * 0.1;
-      
+
       // Color más brillante con agudos
       const material = cube.material as THREE.MeshBasicMaterial;
       material.color.setHSL(0.1, 1, 0.3 + highEnergy * 0.5);
     });
 
     // Actualizar partículas
-    scene.particles.forEach(particleSystem => {
-      const positions = particleSystem.geometry.attributes.position.array as Float32Array;
-      const colors = particleSystem.geometry.attributes.color.array as Float32Array;
-      
+    scene.particles.forEach((particleSystem) => {
+      const positions = particleSystem.geometry.attributes.position
+        .array as Float32Array;
+      const colors = particleSystem.geometry.attributes.color
+        .array as Float32Array;
+
       for (let i = 0; i < positions.length / 3; i++) {
         // Movimiento basado en energía media
         const movement = midEnergy * 0.1;
         positions[i * 3] += (Math.random() - 0.5) * movement; // X
         positions[i * 3 + 1] += (Math.random() - 0.5) * movement; // Y
-        
+
         // Explotar partículas si hay percusión
         if (currentChunk.is_percussive) {
           const explosion = 0.3;
@@ -234,18 +246,17 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
           positions[i * 3 + 1] += (Math.random() - 0.5) * explosion;
           positions[i * 3 + 2] += (Math.random() - 0.5) * explosion;
         }
-        
+
         // Actualizar colores basado en frecuencias
         colors[i * 3] = bassEnergy; // R para graves
         colors[i * 3 + 1] = midEnergy; // G para medios
         colors[i * 3 + 2] = highEnergy; // B para agudos
       }
-      
+
       // Marcar atributos como necesitando actualización
       particleSystem.geometry.attributes.position.needsUpdate = true;
       particleSystem.geometry.attributes.color.needsUpdate = true;
     });
-
   }, [getCurrentChunk, isPlaying, config]);
 
   // Loop de animación
@@ -266,7 +277,7 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
   // Inicializar escena al montar
   useEffect(() => {
     initScene();
-    
+
     return () => {
       // Limpiar al desmontar
       const scene = sceneRef.current;
@@ -306,8 +317,8 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
       scene.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     };
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   return (
@@ -315,7 +326,7 @@ export const VisualizerScene: React.FC<VisualizerSceneProps> = ({
       <canvas
         ref={canvasRef}
         className="w-full h-full block"
-        style={{ background: '#000000' }}
+        style={{ background: "#000000" }}
       />
     </div>
   );

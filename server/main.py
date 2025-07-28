@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import asyncio
 import os
 import tempfile
@@ -13,7 +14,7 @@ app = FastAPI()
 # Permitir CORS para el frontend en desarrollo
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Puerto típico de React/Next
+    allow_origins=["http://localhost:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -203,6 +204,16 @@ async def get_processed_chunks(session_id: str):
         "chunks": [chunk.model_dump() for chunk in chunks]
     }
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/audio/{session_id}")
+async def get_audio_file(session_id: str):
+    """Endpoint para servir el archivo de audio temporal por su session_id."""
+    if session_id not in current_sessions:
+        return {"error": "Sesión no encontrada"}, 404
+
+    file_path = current_sessions[session_id]["file_info"].file_path
+    if not os.path.exists(file_path):
+        return {"error": "Archivo de audio no encontrado en el servidor"}, 404
+
+    # Retorna el archivo directamente. FastAPI manejará los encabezados Content-Type.
+    # El navegador lo reproducirá si es un tipo de audio compatible (como MP3).
+    return FileResponse(path=file_path, media_type="audio/mpeg", filename=os.path.basename(file_path))

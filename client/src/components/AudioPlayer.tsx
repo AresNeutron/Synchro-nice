@@ -1,33 +1,39 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import type { AudioFileInfo } from '../types';
+import { useRef, useEffect, useState, useCallback } from "react";
+import { useAppContext } from "../context/AppContext";
 
-interface AudioPlayerProps {
-  fileInfo: AudioFileInfo | null;
-  onTimeUpdate: (currentTime: number) => void;
-  onPlayStateChange: (isPlaying: boolean) => void;
-  isPlaying: boolean;
-}
+export const AudioPlayer = () => {
+  const { uploadResponse, handleTimeUpdate, handlePlayStateChange, isPlaying } =
+    useAppContext();
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({
-  fileInfo,
-  onTimeUpdate,
-  onPlayStateChange,
-  isPlaying
-}) => {
+  // Extraer fileInfo y sessionId de uploadResponse
+  const fileInfo = uploadResponse?.file_info || null;
+  const sessionId = uploadResponse?.session_id || null;
+
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [currentTimeInternal, setCurrentTimeInternal] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  // Manejar actualización de tiempo
-  const handleTimeUpdate = useCallback(() => {
+  const handleTimeUpdateInternal = useCallback(() => {
     if (audioRef.current) {
       const time = audioRef.current.currentTime;
-      setCurrentTime(time);
-      onTimeUpdate(time);
+      setCurrentTimeInternal(time); // Actualiza estado interno
+      handleTimeUpdate(time); // Pasa al contexto
     }
-  }, [onTimeUpdate]);
+  }, [handleTimeUpdate]);
+
+  useEffect(() => {
+    if (fileInfo && sessionId) {
+      const audioServerUrl = `http://localhost:8000/audio/${sessionId}`;
+      setAudioUrl(audioServerUrl);
+      if (audioRef.current) {
+        audioRef.current.load(); // Vuelve a cargar el audio si la URL cambia
+      }
+    } else {
+      setAudioUrl(null); // Limpiar si no hay info
+    }
+  }, [fileInfo, sessionId]);
 
   // Manejar cuando se carga la metadata del audio
   const handleLoadedMetadata = useCallback(() => {
@@ -42,17 +48,18 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     if (isPlaying) {
       audioRef.current.pause();
-      onPlayStateChange(false);
+      handlePlayStateChange(false);
     } else {
-      audioRef.current.play()
+      audioRef.current
+        .play()
         .then(() => {
-          onPlayStateChange(true);
+          handlePlayStateChange(true);
         })
         .catch((error) => {
-          console.error('Error reproduciendo audio:', error);
+          console.error("Error reproduciendo audio:", error);
         });
     }
-  }, [isPlaying, onPlayStateChange]);
+  }, [isPlaying, handlePlayStateChange]);
 
   // Manejar cambio de volumen
   const handleVolumeChange = useCallback((newVolume: number) => {
@@ -63,19 +70,22 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, []);
 
   // Manejar cambio de posición en el audio
-  const handleSeek = useCallback((newTime: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-      onTimeUpdate(newTime);
-    }
-  }, [onTimeUpdate]);
+  const handleSeek = useCallback(
+    (newTime: number) => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = newTime;
+        setCurrentTimeInternal(newTime);
+        handleTimeUpdate(newTime);
+      }
+    },
+    [handleTimeUpdate]
+  );
 
   // Formatear tiempo en mm:ss
   const formatTime = useCallback((time: number): string => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }, []);
 
   // Actualizar estado del reproductor cuando cambie isPlaying externamente
@@ -94,14 +104,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener("timeupdate", handleTimeUpdateInternal);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
 
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener("timeupdate", handleTimeUpdateInternal);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
     };
-  }, [handleTimeUpdate, handleLoadedMetadata]);
+  }, [handleTimeUpdateInternal, handleLoadedMetadata]);
 
   if (!fileInfo || !audioUrl) {
     return null;
@@ -110,32 +120,29 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   return (
     <div className="bg-gray-900 text-white p-4 rounded-lg">
       {/* Audio element oculto */}
-      <audio
-        ref={audioRef}
-        src={audioUrl}
-        preload="metadata"
-      />
+      <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
       {/* Información del archivo */}
       <div className="mb-4">
         <h3 className="text-lg font-medium truncate">{fileInfo.filename}</h3>
         <p className="text-sm text-gray-400">
-          {formatTime(duration)} • {fileInfo.sample_rate}Hz • {fileInfo.channels} canal{fileInfo.channels > 1 ? 'es' : ''}
+          {formatTime(duration)} • {fileInfo.sample_rate}Hz •{" "}
+          {fileInfo.channels} canal{fileInfo.channels > 1 ? "es" : ""}
         </p>
       </div>
 
       {/* Barra de progreso */}
       <div className="mb-4">
         <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
-          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(currentTimeInternal)}</span>
           <span>{formatTime(duration)}</span>
         </div>
-        
+
         <input
           type="range"
           min={0}
           max={duration || 0}
-          value={currentTime}
+          value={currentTimeInternal}
           onChange={(e) => handleSeek(Number(e.target.value))}
           className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
         />
@@ -151,20 +158,24 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           {isPlaying ? (
             // Icono de pausa
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
             </svg>
           ) : (
             // Icono de play
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z"/>
+              <path d="M8 5v14l11-7z" />
             </svg>
           )}
         </button>
 
         {/* Control de volumen */}
         <div className="flex items-center space-x-2">
-          <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+          <svg
+            className="w-5 h-5 text-gray-400"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
           </svg>
           <input
             type="range"

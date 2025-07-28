@@ -17,8 +17,12 @@ export const useWebSocket = (): UseWebSocketReturn => {
       wsRef.current.close();
     }
 
+    setChunks([]);
+    setStatus(null);
+    setError(null);
+
     sessionIdRef.current = sessionId;
-    const wsUrl = `ws://0.0.0.0:8000/ws/${sessionId}`;
+    const wsUrl = `ws://localhost:8000/ws/${sessionId}`;
     
     try {
       const ws = new WebSocket(wsUrl);
@@ -37,19 +41,19 @@ export const useWebSocket = (): UseWebSocketReturn => {
           switch (message.type) {
             case 'chunk_data': {
               // Agregar nuevo chunk a la lista
-              const chunkData = message.data as AudioChunkData; // error here
+              const chunkData = message.data as AudioChunkData;
               setChunks(prev => [...prev, chunkData]);
               break;
             }
             case 'status': {
               // Actualizar estado del procesamiento
-              const statusData = message.data as AudioProcessingStatus; // error here
+              const statusData = message.data as AudioProcessingStatus;
               setStatus(statusData);
               break;
             }
             case 'error': {
               // Manejar errores del servidor
-              const errorData = message.data as { message: string }; // error here
+              const errorData = message.data as { message: string };
               setError(errorData.message);
               break;
             }
@@ -100,12 +104,6 @@ export const useWebSocket = (): UseWebSocketReturn => {
     };
   }, [disconnect]);
 
-  // Reiniciar datos cuando cambia la sesión
-  useEffect(() => {
-    setChunks([]);
-    setStatus(null);
-    setError(null);
-  }, []);
 
   return {
     connect,
