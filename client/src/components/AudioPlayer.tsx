@@ -171,7 +171,12 @@ export const AudioPlayer = () => {
         {/* Control de volumen */}
         <div className="flex items-center space-x-2">
           <svg
-            className="w-5 h-5 text-gray-400"
+            className="w-5 h-5
+{status: 'completed', progress: 1, total_chunks: 499, processed_chunks: 499, duration: 99.77614583333333}
+￼AppContext.tsx:83 Estado del procesamiento: 
+{status: 'completed', progress: 1, total_chunks: 499, processed_chunks: 499, duration: 99.77614583333333}
+￼AudioPlayer.tsx:59 Error reproduciendo audio: NotSupportedError: The element has no supported sources.
+﻿ text-gray-400"
             fill="currentColor"
             viewBox="0 0 24 24"
           >
