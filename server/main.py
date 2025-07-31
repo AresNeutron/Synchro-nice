@@ -1,10 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 import asyncio
 import os
-import tempfile
 import json
+import uuid
 from audio_processor import AudioProcessor
 from models.models import WebSocketMessage, AudioProcessingStatus, AudioChunkData
 from typing import List, Dict
@@ -26,28 +26,30 @@ audio_processor = AudioProcessor(chunk_duration=0.2)
 processed_audio_data: Dict[str, List[AudioChunkData]] = {}  # {session_id: [AudioChunkData, ...]}
 current_sessions = {}  # {session_id: {"file_info": ..., "status": ...}}
 
+TEMP_BASE_DIR = os.path.join("audio_uploads")
+os.makedirs(TEMP_BASE_DIR, exist_ok=True) # Asegurarse de que el directorio base exista
+
 @app.post("/upload")
 async def upload_audio(file: UploadFile = File(...)):
     """Endpoint para subir archivo de audio MP3"""
     
-    # Validar que sea un archivo MP3
     if not file.filename.lower().endswith('.mp3'):
         return {"error": "Solo se permiten archivos MP3"}
     
-    # Crear directorio temporal si no existe
-    temp_dir = tempfile.gettempdir()
-    
-    # Generar ID único para esta sesión
-    session_id = f"session_{len(current_sessions) + 1}"
-    
-    # Guardar archivo temporalmente
-    file_path = os.path.join(temp_dir, f"{session_id}_{file.filename}")
-    
-    with open(file_path, "wb") as buffer:
-        content = await file.read()
-        buffer.write(content)
-    
+    session_id = str(uuid.uuid4())
+
+    session_file_dir = os.path.join(TEMP_BASE_DIR, session_id)
+    os.makedirs(session_file_dir, exist_ok=True)
+
+    file_path = os.path.join(session_file_dir, file.filename)
+
     try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        print(f"Archivo '{file.filename}' guardado en: {file_path}") # Para depuración
+        
         # Cargar información del archivo
         file_info, audio_data, sample_rate = audio_processor.load_audio(file_path)
         
@@ -78,11 +80,8 @@ async def upload_audio(file: UploadFile = File(...)):
             "total_chunks": total_chunks
         }
         
-    except Exception as e:
-        # Limpiar archivo si hay error
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        return {"error": f"Error procesando archivo: {str(e)}"}
+    except Exception:
+        pass
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -179,12 +178,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 data={"message": str(e)}
             ).to_json()
         )
-    finally:
-        # Limpiar recursos
-        if session_id in current_sessions:
-            file_path = current_sessions[session_id]["file_info"].file_path
-            if os.path.exists(file_path):
-                os.remove(file_path)  # Eliminar archivo temporal
+
 
 @app.get("/")
 async def root():
@@ -208,12 +202,10 @@ async def get_processed_chunks(session_id: str):
 async def get_audio_file(session_id: str):
     """Endpoint para servir el archivo de audio temporal por su session_id."""
     if session_id not in current_sessions:
-        return {"error": "Sesión no encontrada"}, 404
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
 
     file_path = current_sessions[session_id]["file_info"].file_path
     if not os.path.exists(file_path):
-        return {"error": "Archivo de audio no encontrado en el servidor"}, 404
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
 
-    # Retorna el archivo directamente. FastAPI manejará los encabezados Content-Type.
-    # El navegador lo reproducirá si es un tipo de audio compatible (como MP3).
     return FileResponse(path=file_path, media_type="audio/mpeg", filename=os.path.basename(file_path))

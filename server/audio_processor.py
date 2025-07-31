@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Generator
 import soundfile as sf
 from typing import Tuple
-from models.models import AudioChunkData, AudioFileInfo
+from models.models import AudioChunkData, AudioFileInfo # Se asume que models.models contiene la definición actualizada de AudioChunkData
 
 class AudioProcessor:
     def __init__(self, chunk_duration: float = 0.2):
@@ -71,7 +71,7 @@ class AudioProcessor:
         
         # 5. Calcular rolloff espectral (dónde se concentra la energía)
         rolloff = librosa.feature.spectral_rolloff(y=chunk, sr=sample_rate)[0, 0]
-        energy_center = float(rolloff)
+        energy_center = float(rolloff) # energy_center se mantiene como rolloff según la definición original
         
         # 6. Detectar elementos percusivos usando onset detection
         onset_frames = librosa.onset.onset_detect(y=chunk, sr=sample_rate, units='frames')
@@ -80,7 +80,30 @@ class AudioProcessor:
         # 7. Calcular zero crossing rate (para detectar ruido vs tonos)
         zcr = librosa.feature.zero_crossing_rate(chunk)[0, 0]
         zero_crossing_rate = float(zcr)
-        
+
+        # 8. Calcular planitud espectral (spectral_flatness)
+        # S=magnitude es el espectrograma de magnitud
+        spectral_flatness_val = librosa.feature.spectral_flatness(S=magnitude)[0, 0]
+        spectral_flatness = float(spectral_flatness_val)
+
+        # 9. Calcular características de croma (chroma_features)
+        # Se promedia a través de los frames de tiempo para obtener un único valor por chunk
+        chroma = librosa.feature.chroma_stft(S=magnitude, sr=sample_rate, n_fft=self.n_fft, hop_length=self.hop_length)
+        chroma_features = [float(val) for val in np.mean(chroma, axis=1)]
+
+        # 10. Calcular fuerza del beat (beat_strength)
+        # Primero, se calcula la envolvente de la fuerza de inicio (onset strength)
+        onset_env = librosa.onset.onset_strength(y=chunk, sr=sample_rate)
+        # La fuerza del beat para un chunk puede ser el valor máximo de su envolvente de inicio
+        beat_strength = float(np.max(onset_env)) if onset_env.size > 0 else 0.0
+
+        # 11. Calcular tempo (BPM)
+        # La estimación del tempo en chunks muy cortos puede ser poco fiable.
+        # librosa.beat.beat_track devuelve un array, tomamos el primer elemento.
+        # Requiere una envolvente de inicio.
+        tempo_val, _ = librosa.beat.beat_track(onset_env=onset_env, sr=sample_rate, start_bpm=120, aggregate=None)
+        tempo = float(tempo_val[0]) if tempo_val.size > 0 else 0.0 # Por defecto 0.0 si no se detecta tempo para el chunk
+
         return AudioChunkData(
             timestamp=timestamp,
             frequencies=frequencies,
@@ -89,7 +112,11 @@ class AudioProcessor:
             energy_center=energy_center,
             is_percussive=is_percussive,
             rolloff=float(rolloff),
-            zero_crossing_rate=zero_crossing_rate
+            zero_crossing_rate=zero_crossing_rate,
+            spectral_flatness=spectral_flatness,
+            chroma_features=chroma_features,
+            beat_strength=beat_strength,
+            tempo=tempo
         )
     
     def _extract_frequency_bands(self, magnitude: np.ndarray, sample_rate: int) -> List[float]:
