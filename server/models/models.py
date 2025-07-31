@@ -13,6 +13,11 @@ class AudioChunkData(BaseModel):
     rolloff: float  # Frecuencia por debajo de la cual está el 85% de la energía
     zero_crossing_rate: float  # Tasa de cruces por cero - indica ruido vs tono puro
 
+    spectral_flatness: float # Qué tan "ruidoso" o "tonal" es el sonido (0.0 a 1.0)
+    chroma_features: List[float] # Amplitud de cada una de las 12 notas musicales (C, C#, D, etc.)
+    beat_strength: float # Cuán fuerte o claro es el pulso rítmico en este chunk (0.0 a 1.0)
+    tempo: float # Velocidad de la música en pulsos por minuto (BPM)
+
 class AudioProcessingStatus(BaseModel):
     """Estado del procesamiento de audio"""
     status: str  # "processing", "completed", "error"
