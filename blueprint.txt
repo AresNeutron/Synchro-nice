@@ -1,0 +1,159 @@
+Guía de Síntesis de Video con AudioChunkData
+Este documento sirve como una guía para entender y aplicar las estadísticas de audio del modelo AudioChunkData en la síntesis de video. Cada campo ofrece una oportunidad única para transformar el sonido en elementos visuales dinámicos y reactivos.
+
+Campos de AudioChunkData y su Aplicación Visual
+1. timestamp (Tiempo en segundos desde el inicio)
+Significado: Indica el momento exacto en la canción al que corresponde el chunk de audio.
+
+Ideas para Video:
+
+Progreso y Evolución: Utilízalo para que los elementos visuales se vuelvan más intensos, grandes o aumenten en número a medida que la canción avanza.
+
+Velocidad de Animación: Modula la velocidad general de las animaciones en la escena; por ejemplo, que todo se mueva más rápido o más lento a medida que la canción progresa.
+
+Cambios de Escena/Capítulos: Activa transiciones de escena o "capítulos" visuales en momentos clave predefinidos o detectados en la canción.
+
+Líneas de Tiempo Visuales: Controla el llenado de una barra de progreso, un círculo que se completa, o patrones que se complejizan visualmente con el tiempo.
+
+2. frequencies (Amplitudes por banda de frecuencia)
+Significado: Muestra la fuerza (amplitud) de 20 bandas de frecuencia específicas dentro del chunk.
+
+Ideas para Video:
+
+Visualizador de Ecualizador: Cada banda puede controlar la altura, color o transparencia de una barra o columna individual.
+
+Ondas y Patrones Concéntricos: Las frecuencias bajas (graves) pueden generar ondas expansivas lentas y grandes. Las frecuencias medias, formas más estructuradas. Las frecuencias altas, partículas pequeñas, rápidas o destellos.
+
+Control de Color por Rango: Asigna rangos de colores a las frecuencias (ej., graves = azules/verdes oscuros; medios = amarillos/naranjas; agudos = rojos/púrpuras brillantes). La intensidad del color se modula por la amplitud de la banda.
+
+Formas Geométricas Dinámicas: La activación de ciertas bandas puede hacer que aparezcan polígonos, círculos o líneas con diferentes grosores, tamaños o niveles de opacidad.
+
+3. amplitude (Volumen general del chunk)
+Significado: El volumen total de ese pequeño trozo de audio (0.0 a 1.0).
+
+Ideas para Video:
+
+Escala y Tamaño: Controla el tamaño general de todos los elementos visuales (partículas, formas, fondo). A mayor volumen, más grandes los elementos.
+
+Intensidad de Brillo/Glow: Un volumen alto puede hacer que toda la escena se ilumine, o que los elementos tengan un halo o brillo más fuerte.
+
+Efectos de Post-Procesado: Un volumen muy alto puede aplicar efectos sutiles de distorsión, aberración cromática o vibración a la imagen.
+
+Opacidad del Fondo: Un volumen bajo podría hacer el fondo más opaco, mientras que uno alto lo hace más transparente o vibrante.
+
+4. brightness (Centroide espectral normalizado - qué tan "brillante" suena)
+Significado: Indica si la energía del sonido está más concentrada en frecuencias altas (brillante) o bajas (opaco).
+
+Ideas para Video:
+
+Paleta de Colores y Luminosidad: Un brightness bajo puede llevar a colores desaturados y oscuros, evocando profundidad. Un brightness alto puede aumentar la saturación y luminosidad, haciendo la escena más vívida y brillante.
+
+Velocidad y Dirección de Partículas: Un sonido "brillante" podría generar partículas que se mueven rápidamente hacia arriba (como chispas). Un sonido "opaco" podría generar un flujo lento y denso hacia abajo.
+
+Nitidez vs. Suavidad: Controla el desenfoque (blur) o la nitidez de la imagen. Más brillo = más nítido; menos brillo = más suave o borroso.
+
+5. energy_center (Frecuencia donde está concentrada la energía - Hz)
+Significado: La frecuencia específica (en Hertz) donde se concentra la mayor parte de la energía sonora.
+
+Ideas para Video:
+
+Desplazamiento Vertical/Horizontal: Un punto o línea en la pantalla podría moverse verticalmente (hacia abajo para graves, hacia arriba para agudos) o horizontalmente según el valor.
+
+Control de Efectos Específicos: Si la energía se concentra en un rango vocal, activa efectos centrados en un avatar. Si es en un rango de guitarra, ondas visuales tipo "cuerda vibrante".
+
+Transiciones de Gradiente: Un gradiente de color o luz que se desplaza en una dirección (ej., de abajo hacia arriba) según el valor de energy_center.
+
+6. is_percussive (Si detectamos un golpe/percusión en este chunk)
+Significado: Booleano que indica si se detectó un sonido percusivo (golpe corto y rápido).
+
+Ideas para Video:
+
+Partículas Explosivas: Genera explosiones de partículas, chispas o ráfagas de luz sincronizadas con cada golpe.
+
+Flashes y Destellos: Breves destellos de luz o cambios de color de fondo que coinciden con la percusión.
+
+Ondas de Choque: Pequeñas ondas expansivas que distorsionan el espacio momentáneamente o hacen vibrar la escena.
+
+Efectos de Falla (Glitch): Un golpe puede activar un efecto de "glitch" o distorsión digital momentánea en la pantalla.
+
+Creación/Destrucción de Elementos: Un golpe puede hacer aparecer o desaparecer elementos visuales.
+
+7. rolloff (Frecuencia por debajo de la cual está el 85% de la energía)
+Significado: La frecuencia por debajo de la cual se encuentra el 85% de la energía total del sonido, dando una idea de dónde "corta" el grueso del sonido en el espectro.
+
+Ideas para Video:
+
+Paleta de Colores: Mapea a tonos más relajantes (verdes, azules) para rolloff bajo, y colores más energéticos (rojos, naranjas) para rolloff alto.
+
+Ambiente y Textura del Fondo: Un rolloff bajo puede generar texturas visuales densas, fluidas o nebulosas. Un rolloff alto puede generar texturas más aireadas, dispersas o cristalinas.
+
+Profundidad de Campo: Un rolloff bajo podría aumentar el desenfoque de fondo para una sensación de cercanía. Un rolloff alto podría reducirlo, haciendo la escena más nítida y abierta.
+
+Movimiento de Cámara: Un rolloff bajo podría implicar movimientos de cámara lentos y envolventes. Un rolloff alto podría implicar movimientos más rápidos y dinámicos.
+
+8. zero_crossing_rate (Tasa de cruces por cero)
+Significado: Cuántas veces la forma de onda del sonido cruza la línea del "cero". Un valor alto indica más ruido; un valor bajo, un sonido más tonal.
+
+Ideas para Video:
+
+Ruido/Granulado Visual: Un zero_crossing_rate alto puede añadir un efecto de ruido o granulado a la imagen, o hacer que los elementos tengan bordes más ásperos y "digitales".
+
+Claridad vs. Caos: Un valor bajo (tono puro) puede resultar en formas visuales más limpias, suaves y predecibles (ondas sinusoidales, círculos). Un valor alto (ruido) puede generar formas más irregulares, fractales o aleatorias.
+
+Efectos de Distorsión/Glitch: Controla la intensidad de efectos de "glitch", "pixelación" o "interferencia" en el video. Un sonido ruidoso puede visualmente "corromper" la imagen.
+
+Nuevos Campos y sus Aplicaciones Visuales
+9. spectral_flatness (Planitud Espectral)
+Significado: Mide qué tan "ruidoso" o "tonal" es un sonido. Alto = ruido; Bajo = tono puro.
+
+Ideas para Video:
+
+Transiciones "Caos" a "Orden": Controla la transición entre visualizaciones ruidosas (estática, píxeles aleatorios) y visualizaciones ordenadas (formas geométricas claras, gradientes suaves).
+
+Textura de Superficie: Un valor alto podría dar a las superficies una textura más rugosa o granulada, mientras que uno bajo las hace más lisas y pulidas.
+
+Nitidez de Bordes: A mayor planitud, más "desdibujados" o "difusos" los bordes de los objetos.
+
+10. chroma_features (Características de Croma)
+Significado: La prominencia de cada una de las 12 clases de tono (C, C#, D, etc.), independientemente de la octava. Representa la "armonía" del momento.
+
+Ideas para Video:
+
+Mapeo de Color Directo a Notas: Asigna un color específico a cada una de las 12 notas musicales. Cuando una nota es predominante, su color se acentúa en la escena o en elementos específicos.
+
+Movimiento Armónico Visual: Imagina un círculo visual de los 12 tonos. La posición de un elemento o la dirección de un flujo visual podría moverse según la tónica predominante, creando un flujo armónico visual.
+
+Activación de Elementos Temáticos: La detección de secuencias de notas (riffs, acordes) podría activar patrones visuales únicos o animaciones predefinidas.
+
+11. beat_strength (Fuerza del Beat/Pulso)
+Significado: Indica cuán "fuerte" o "claro" es el pulso rítmico general en ese momento.
+
+Ideas para Video:
+
+Intensidad de Rebote/Pulso: Controla la intensidad de un "rebote" o "latido" visual de la cámara o de elementos clave.
+
+Sincronización de Animaciones Complejas: Un beat_strength alto puede ser un "disparador" para animaciones más elaboradas que requieren un ritmo claro y marcado.
+
+Claridad de la Cuadrícula Visual: Si la música es muy rítmica, una cuadrícula o patrones visuales podrían aparecer más nítidos y definidos.
+
+Frecuencia de Parpadeo: Elementos visuales que parpadean o cambian de estado al ritmo del pulso.
+
+12. tempo (Tempo)
+Significado: La velocidad de la música en pulsos por minuto (BPM). Puede ser calculado para el chunk actual o un promedio.
+
+Ideas para Video:
+
+Velocidad General de Animación: Cuanto más rápido el BPM, más rápidas y frenéticas las animaciones y movimientos de los elementos.
+
+Velocidad de Flujo de Partículas: Controla la velocidad a la que fluyen o se dispersan las partículas.
+
+Frecuencia de Eventos: Modula la frecuencia con la que ocurren ciertos eventos visuales (ej., destellos, cambios de color).
+
+Consideraciones Adicionales para la Síntesis de Video
+Normalización: Asegúrate de que todas las estadísticas estén normalizadas (ej., de 0 a 1) para facilitar su mapeo a rangos visuales (colores, tamaños, opacidades).
+
+Combinación de Parámetros: La verdadera riqueza visual se logra combinando múltiples estadísticas. Por ejemplo, el amplitude controla el tamaño de una esfera, mientras que el brightness controla su color, y el is_percussive genera un destello cuando hay un golpe.
+
+Curvas de Mapeo: Utiliza curvas de mapeo (logarítmicas, exponenciales, S-curves) para que los cambios visuales sean más dramáticos o sutiles en ciertos rangos, en lugar de un mapeo lineal simple.
+
+Memoria Visual: Algunas visualizaciones pueden tener una "memoria" de los chunks anteriores, creando transiciones más suaves y orgánicas en lugar de reaccionar instantáneamente a cada cambio.
