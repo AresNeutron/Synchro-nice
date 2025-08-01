@@ -1,5 +1,3 @@
-// Tipos que coinciden con el backend Python
-
 export interface AudioChunkData {
   timestamp: number;
   frequencies: number[]; // 20 bandas de frecuencia
@@ -9,6 +7,10 @@ export interface AudioChunkData {
   is_percussive: boolean; // Si hay percusión en este chunk
   rolloff: number; // Rolloff espectral
   zero_crossing_rate: number; // Tasa de cruces por cero
+  spectral_flatness: number; // Qué tan "ruidoso" o "tonal" es el sonido (0.0 a 1.0)
+  chroma_features: number[]; // Amplitud de cada una de las 12 notas musicales
+  beat_strength: number; // Cuán fuerte o claro es el pulso rítmico
+  tempo: number; // Velocidad de la música en pulsos por minuto (BPM)
 }
 
 export interface AudioProcessingStatus {
