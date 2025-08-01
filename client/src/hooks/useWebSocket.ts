@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { AudioChunkData, AudioProcessingStatus, UseWebSocketReturn, WebSocketMessage } from '../types';
 
-
 export const useWebSocket = (): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
-  const [chunks, setChunks] = useState<AudioChunkData[]>([]);
+  const [chunk, setChunk] = useState<AudioChunkData | null>(null);
   const [status, setStatus] = useState<AudioProcessingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -14,11 +13,14 @@ export const useWebSocket = (): UseWebSocketReturn => {
   const connect = useCallback((sessionId: string) => {
     // Cerrar conexión existente si la hay
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.close(1000, 'Reconectando con nuevo sessionId');
+      // No limpiar wsRef aquí para evitar errores al reconectar
     }
 
-    setChunks([]);
+    // Reiniciar estados para la nueva conexión
+    setIsConnected(false);
     setStatus(null);
+    setChunk(null);
     setError(null);
 
     sessionIdRef.current = sessionId;
@@ -40,21 +42,20 @@ export const useWebSocket = (): UseWebSocketReturn => {
           
           switch (message.type) {
             case 'chunk_data': {
-              // Agregar nuevo chunk a la lista
               const chunkData = message.data as AudioChunkData;
-              setChunks(prev => [...prev, chunkData]);
+              setChunk(chunkData);
               break;
             }
             case 'status': {
-              // Actualizar estado del procesamiento
               const statusData = message.data as AudioProcessingStatus;
               setStatus(statusData);
               break;
             }
             case 'error': {
-              // Manejar errores del servidor
               const errorData = message.data as { message: string };
               setError(errorData.message);
+              // Cerrar la conexión si el servidor envía un error
+              wsRef.current?.close(1001, errorData.message);
               break;
             }
             default:
@@ -65,18 +66,16 @@ export const useWebSocket = (): UseWebSocketReturn => {
           setError('Error parseando datos del servidor');
         }
       };
-
-      ws.onerror = (event) => {
-        console.error('Error WebSocket:', event);
-        setError('Error de conexión WebSocket');
-        setIsConnected(false);
+      
+      ws.onerror = () => {
+        console.warn('Error WebSocket. El estado final se determinará con el cierre.');
       };
 
       ws.onclose = (event) => {
         console.log('WebSocket cerrado:', event.code, event.reason);
         setIsConnected(false);
         
-        // Solo mostrar error si no fue un cierre intencional
+        // Determinar el error si el cierre no fue intencional (código 1000)
         if (event.code !== 1000) {
           setError(`Conexión cerrada: ${event.reason || 'Razón desconocida'}`);
         }
@@ -97,6 +96,14 @@ export const useWebSocket = (): UseWebSocketReturn => {
     sessionIdRef.current = null;
   }, []);
 
+  // Nueva función para enviar la señal "get_chunk"
+  const sendGetChunkSignal = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const message = { action: 'get_chunk' };
+      wsRef.current.send(JSON.stringify(message));
+    }
+  }, []);
+
   // Limpiar al desmontar el componente
   useEffect(() => {
     return () => {
@@ -104,13 +111,16 @@ export const useWebSocket = (): UseWebSocketReturn => {
     };
   }, [disconnect]);
 
-
+  // Se retorna el nuevo estado `chunk` en lugar de una lista
+  // y la nueva función `sendGetChunkSignal`.
   return {
     connect,
     disconnect,
     isConnected,
-    chunks,
+    chunk,
     status,
-    error
+    error,
+    sendGetChunkSignal,
   };
 };
+
