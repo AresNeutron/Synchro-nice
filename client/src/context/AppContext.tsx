@@ -1,7 +1,5 @@
 // src/context/AppContext.tsx
 import {
-  createContext,
-  useContext,
   useState,
   useCallback,
   useEffect,
@@ -9,10 +7,7 @@ import {
 } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { AppState, UploadResponse } from '../types';
-import type { AppContextType } from '../types/context_interface';
-
-
-const AppContext = createContext<AppContextType | undefined>(undefined);
+import { AppContext } from '../hooks/useAppContext';
 
 
 export default function AppProvider ({ children }: {children: ReactNode}) {
@@ -116,13 +111,4 @@ export default function AppProvider ({ children }: {children: ReactNode}) {
       {children}
     </AppContext.Provider>
   );
-};
-
-// 4. Hook personalizado para consumir el contexto
-export const useAppContext = () => {
-  const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useAppContext must be used within an AppProvider');
-  }
-  return context;
 };
