@@ -11,11 +11,12 @@ export default function AppProvider({ children }: { children: ReactNode }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   const {
-    // connect,
+    connect,
     isConnected,
-    chunks,
+    chunk,
     status: processingStatus,
     error: webSocketError,
+    sendGetChunkSignal,
   } = useWebSocket();
 
   const uploadFile = useCallback(
@@ -41,6 +42,8 @@ export default function AppProvider({ children }: { children: ReactNode }) {
         setSessionId(uploadResponse.session_id);
         setAppState(APPSTATE.PROCESSING);
 
+        connect(uploadResponse.session_id)
+
         return uploadResponse;
       } catch (err) {
         console.error("Error en la subida:", err);
@@ -48,8 +51,18 @@ export default function AppProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    []
+    [connect]
   );
+
+  // modifica esta función para llame 
+  const connectAndGetFirstChunk = useCallback(() => {
+    if (isConnected) {
+      sendGetChunkSignal();
+    } else {
+      console.error("No hay sessionId disponible para conectar el WebSocket.");
+    }
+  }, [sendGetChunkSignal, isConnected]);
+
 
   // El valor que se proporciona al contexto
   const contextValue = {
@@ -59,10 +72,11 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     setFileInfo,
     sessionId,
     uploadFile,
-    chunks,
+    chunk,
     processingStatus,
     isConnected,
     webSocketError,
+    connectAndGetFirstChunk,
   };
 
   return (

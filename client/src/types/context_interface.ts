@@ -11,8 +11,9 @@ export interface AppContextType {
   uploadFile: (file: File) => Promise<UploadResponse>;
 
   // Datos del WebSocket
-  chunks: AudioChunkData[];
+  chunk: AudioChunkData | null;
   processingStatus: AudioProcessingStatus | null;
   isConnected: boolean;
   webSocketError: string | null;
+  connectAndGetFirstChunk: () => void;
 }

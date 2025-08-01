@@ -1,19 +1,24 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import type { AudioChunkData, AudioProcessingStatus, UseWebSocketReturn, WebSocketMessage } from '../types';
+import { useState, useEffect, useRef, useCallback } from "react";
+import type {
+  AudioChunkData,
+  AudioProcessingStatus,
+  UseWebSocketReturn,
+  WebSocketMessage,
+} from "../types";
 
 export const useWebSocket = (): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
   const [chunk, setChunk] = useState<AudioChunkData | null>(null);
   const [status, setStatus] = useState<AudioProcessingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
   const connect = useCallback((sessionId: string) => {
     // Cerrar conexión existente si la hay
     if (wsRef.current) {
-      wsRef.current.close(1000, 'Reconectando con nuevo sessionId');
+      wsRef.current.close(1000, "Reconectando con nuevo sessionId");
       // No limpiar wsRef aquí para evitar errores al reconectar
     }
 
@@ -25,13 +30,13 @@ export const useWebSocket = (): UseWebSocketReturn => {
 
     sessionIdRef.current = sessionId;
     const wsUrl = `ws://localhost:8000/ws/${sessionId}`;
-    
+
     try {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket conectado');
+        console.log("WebSocket conectado");
         setIsConnected(true);
         setError(null);
       };
@@ -39,19 +44,21 @@ export const useWebSocket = (): UseWebSocketReturn => {
       ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          
+
           switch (message.type) {
-            case 'chunk_data': {
+            case "chunk_data": {
               const chunkData = message.data as AudioChunkData;
+              console.log("RESPUESTA DEL SERVIDOR: PEDAZO: ");
+              console.log(chunkData);
               setChunk(chunkData);
               break;
             }
-            case 'status': {
+            case "status": {
               const statusData = message.data as AudioProcessingStatus;
               setStatus(statusData);
               break;
             }
-            case 'error': {
+            case "error": {
               const errorData = message.data as { message: string };
               setError(errorData.message);
               // Cerrar la conexión si el servidor envía un error
@@ -59,37 +66,38 @@ export const useWebSocket = (): UseWebSocketReturn => {
               break;
             }
             default:
-              console.warn('Tipo de mensaje desconocido:', message.type);
+              console.warn("Tipo de mensaje desconocido:", message.type);
           }
         } catch (err) {
-          console.error('Error parseando mensaje WebSocket:', err);
-          setError('Error parseando datos del servidor');
+          console.error("Error parseando mensaje WebSocket:", err);
+          setError("Error parseando datos del servidor");
         }
       };
-      
+
       ws.onerror = () => {
-        console.warn('Error WebSocket. El estado final se determinará con el cierre.');
+        console.warn(
+          "Error WebSocket. El estado final se determinará con el cierre."
+        );
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket cerrado:', event.code, event.reason);
+        console.log("WebSocket cerrado:", event.code, event.reason);
         setIsConnected(false);
-        
+
         // Determinar el error si el cierre no fue intencional (código 1000)
         if (event.code !== 1000) {
-          setError(`Conexión cerrada: ${event.reason || 'Razón desconocida'}`);
+          setError(`Conexión cerrada: ${event.reason || "Razón desconocida"}`);
         }
       };
-
     } catch (err) {
-      console.error('Error creando WebSocket:', err);
-      setError('No se pudo establecer conexión WebSocket');
+      console.error("Error creando WebSocket:", err);
+      setError("No se pudo establecer conexión WebSocket");
     }
   }, []);
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.close(1000, 'Desconexión intencional');
+      wsRef.current.close(1000, "Desconexión intencional");
       wsRef.current = null;
     }
     setIsConnected(false);
@@ -99,7 +107,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
   // Nueva función para enviar la señal "get_chunk"
   const sendGetChunkSignal = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const message = { action: 'get_chunk' };
+      const message = { action: "get_chunk" };
       wsRef.current.send(JSON.stringify(message));
     }
   }, []);
@@ -123,4 +131,3 @@ export const useWebSocket = (): UseWebSocketReturn => {
     sendGetChunkSignal,
   };
 };
-
