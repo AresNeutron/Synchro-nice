@@ -1,114 +1,71 @@
-// src/context/AppContext.tsx
-import {
-  useState,
-  useCallback,
-  useEffect,
-  type ReactNode,
-} from 'react';
-import { useWebSocket } from '../hooks/useWebSocket';
-import type { AppState, UploadResponse } from '../types';
-import { AppContext } from '../hooks/useAppContext.ts';
+import { useState, useCallback } from "react";
+import type { ReactNode } from "react";
+import { AppContext } from "../hooks/useAppContext";
+import { useWebSocket } from "../hooks/useWebSocket";
+import { APPSTATE } from "../types";
+import type { AppState, AudioFileInfo, UploadResponse } from "../types";
 
+export default function AppProvider({ children }: { children: ReactNode }) {
+  const [appState, setAppState] = useState<AppState>(APPSTATE.INIT);
+  const [fileInfo, setFileInfo] = useState<AudioFileInfo | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
-export default function AppProvider ({ children }: {children: ReactNode}) {
-  const [appState, setAppState] = useState<AppState>('idle');
-  const [uploadResponse, setUploadResponse] = useState<UploadResponse | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null); // Unificado para errores de subida o WS
-  
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-
-  const { 
-    connect, 
-    disconnect, 
-    isConnected, 
-    chunks, 
-    status: wsStatus, // Renombrar para evitar conflicto con el estado 'status' general
-    error: wsError 
-  } = useWebSocket();
-
-  const handleUploadSuccess = useCallback((response: UploadResponse) => {
-    console.log('Archivo subido exitosamente:', response);
-    setUploadResponse(response);
-    setAppState('processing');
-    setError(null); 
-    connect(response.session_id);
-  }, [connect]);
-
-  const handleUploadError = useCallback((errorMessage: string) => {
-    console.error('Error en subida:', errorMessage);
-    setError(errorMessage);
-    setAppState('error');
-    setUploadResponse(null);
-    disconnect(); 
-  }, [disconnect]);
-
-  const handlePlayStateChange = useCallback((playing: boolean) => {
-    setIsPlaying(playing);
-    if (playing && appState !== 'playing') {
-      setAppState('playing');
-    } else if (!playing && appState === 'playing') {
-      setAppState('paused');
-    }
-  }, [appState]);
-
-  const handleTimeUpdate = useCallback((time: number) => {
-    setCurrentTime(time);
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setAppState('idle');
-    setUploadResponse(null);
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setError(null);
-    disconnect();
-  }, [disconnect]);
-
-  useEffect(() => {
-    if (wsError) {
-      setError(`Error de conexión WebSocket: ${wsError}`);
-      setAppState('error');
-    }
-  }, [wsError]);
-
-  useEffect(() => {
-    if (wsStatus) {
-      console.log('Estado del procesamiento:', wsStatus);
-      if (wsStatus.status === 'completed' && appState === 'processing') {
-        setAppState('paused');
-      } else if (wsStatus.status === 'error') {
-        setError('Error procesando el archivo de audio desde el servidor.');
-        setAppState('error');
-      }
-    }
-  }, [wsStatus, appState]);
-
-
-  // Valor que será provisto a los componentes hijos
-  const contextValue = {
-    appState,
-    uploadResponse,
-    isUploading,
-    error,
-    isPlaying,
-    currentTime,
+  const {
+    // connect,
     isConnected,
     chunks,
-    wsStatus,
-    wsError,
-    handleUploadSuccess,
-    handleUploadError,
-    handlePlayStateChange,
-    handleTimeUpdate,
-    handleReset,
-    setIsUploading,
+    status: processingStatus,
+    error: webSocketError,
+  } = useWebSocket();
+
+  const uploadFile = useCallback(
+    async (file: File): Promise<UploadResponse> => {
+      setAppState(APPSTATE.UPLOADING);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("http://localhost:8000/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Error al subir el archivo");
+        }
+
+        const uploadResponse: UploadResponse = await response.json();
+
+        setFileInfo(uploadResponse.file_info);
+        setSessionId(uploadResponse.session_id);
+        setAppState(APPSTATE.PROCESSING);
+
+        return uploadResponse;
+      } catch (err) {
+        console.error("Error en la subida:", err);
+        setAppState(APPSTATE.ERROR);
+        throw err;
+      }
+    },
+    []
+  );
+
+  // El valor que se proporciona al contexto
+  const contextValue = {
+    appState,
+    setAppState,
+    fileInfo,
+    setFileInfo,
+    sessionId,
+    uploadFile,
+    chunks,
+    processingStatus,
+    isConnected,
+    webSocketError,
   };
 
   return (
-    <AppContext.Provider value={contextValue}>
-      {children}
-    </AppContext.Provider>
+    <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
-};
+}

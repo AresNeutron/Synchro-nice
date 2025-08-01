@@ -40,8 +40,17 @@ export interface UploadResponse {
   total_chunks: number;
 }
 
-// Estados de la aplicación
-export type AppState = 'idle' | 'uploading' | 'processing' | 'playing' | 'paused' | 'error';
+
+export const APPSTATE = {
+    INIT: 0,
+    UPLOADING: 1,
+    PROCESSING: 2,
+    PLAYING: 3,
+    PAUSED: 4,
+    ERROR: 5,
+} as const;
+
+export type AppState = typeof APPSTATE[keyof typeof APPSTATE];
 
 // Configuración del visualizador
 export interface VisualizerConfig {

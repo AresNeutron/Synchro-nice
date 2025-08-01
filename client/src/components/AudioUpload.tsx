@@ -1,155 +1,63 @@
-import React, { useState, useCallback } from "react";
-import type { UploadResponse } from "../types";
-import { useAppContext } from "../hooks/useAppContext";
+import { useState, useRef, type ChangeEvent } from 'react';
+import { useAppContext } from '../hooks/useAppContext'; // Importa tu hook de contexto
+import { APPSTATE, type UploadResponse } from '../types';
 
-export const AudioUpload = () => {
-  const {
-    handleUploadSuccess,
-    handleUploadError,
-    isUploading,
-    setIsUploading,
-  } = useAppContext();
-  const [dragOver, setDragOver] = useState(false);
+export default function AudioUploader() {
+  const { uploadFile, appState } = useAppContext();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const uploadFile = useCallback(
-    async (file: File) => {
-      // Validar que sea MP3
-      if (!file.name.toLowerCase().endsWith(".mp3")) {
-        handleUploadError("Solo se permiten archivos MP3");
-        return;
-      }
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      setSelectedFile(event.target.files[0]);
+    }
+  };
 
-      // Validar tamaño (máximo 50MB)
-      if (file.size > 50 * 1024 * 1024) {
-        handleUploadError("El archivo es demasiado grande (máximo 50MB)");
-        return;
-      }
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      alert('Por favor, selecciona un archivo de audio primero.');
+      return;
+    }
 
-      setIsUploading(true);
+    const response: UploadResponse = await uploadFile(selectedFile);
+    console.log('¡Archivo subido exitosamente!');
+    console.log('Respuesta del backend:', response);
+  };
 
-      try {
-        // Crear FormData para enviar el archivo
-        const formData = new FormData();
-        formData.append("file", file);
-
-        // Enviar al backend
-        const response = await fetch("http://localhost:8000/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Error HTTP: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        // Verificar si hay error en la respuesta
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        // Éxito - llamar callback
-        handleUploadSuccess(result as UploadResponse);
-      } catch (error) {
-        console.error("Error subiendo archivo:", error);
-        handleUploadError(
-          error instanceof Error ? error.message : "Error desconocido"
-        );
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    [handleUploadSuccess, handleUploadError, setIsUploading]
-  );
-
-  const handleFileInput = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (file) {
-        uploadFile(file);
-      }
-    },
-    [uploadFile]
-  );
-
-  const handleDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      setDragOver(false);
-
-      const file = event.dataTransfer.files?.[0];
-      if (file) {
-        uploadFile(file);
-      }
-    },
-    [uploadFile]
-  );
-
-  const handleDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    setDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    setDragOver(false);
-  }, []);
+  const isUploading = appState === APPSTATE.UPLOADING;
 
   return (
-    <div className="w-full max-w-md mx-auto p-6">
-      {/* Área de drag & drop */}
-      <div
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          dragOver ? "border-blue-500 bg-blue-50" : "border-gray-300"
-        } ${isUploading ? "opacity-50 pointer-events-none" : ""}`}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+    <div className="flex flex-col items-center justify-center p-6 bg-gray-800 rounded-lg shadow-xl">
+      <h2 className="text-2xl font-bold text-white mb-4">Sube un archivo de audio</h2>
+      
+      <input
+        type="file"
+        accept=".mp3, .wav, .aac" // Define los tipos de archivos aceptados
+        onChange={handleFileChange}
+        ref={fileInputRef}
+        className="hidden"
+      />
+
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        className="px-6 py-3 mb-4 text-lg font-semibold text-white transition-colors duration-200 bg-indigo-600 rounded-full hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
       >
-        {isUploading ? (
-          <div className="space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="text-gray-600">Subiendo archivo...</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="text-6xl">🎵</div>
-            <div>
-              <p className="text-lg font-medium text-gray-700">
-                Arrastra tu archivo MP3 aquí
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                o haz clic para seleccionar
-              </p>
-            </div>
+        {selectedFile ? `Archivo: ${selectedFile.name}` : 'Selecciona un archivo'}
+      </button>
 
-            {/* Input file oculto */}
-            <input
-              type="file"
-              accept=".mp3,audio/mpeg"
-              onChange={handleFileInput}
-              className="hidden"
-              id="file-input"
-              disabled={isUploading}
-            />
+      <button
+        onClick={handleUpload}
+        disabled={isUploading || !selectedFile}
+        className={`px-6 py-3 text-lg font-semibold text-white rounded-full transition-colors duration-200 ${
+          isUploading
+            ? 'bg-gray-500 cursor-not-allowed'
+            : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500'
+        }`}
+      >
+        {isUploading ? 'Subiendo...' : 'Subir audio'}
+      </button>
 
-            {/* Botón que activa el input */}
-            <label
-              htmlFor="file-input"
-              className="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg cursor-pointer hover:bg-blue-600 transition-colors"
-            >
-              Seleccionar archivo
-            </label>
-          </div>
-        )}
-      </div>
-
-      {/* Información adicional */}
-      <div className="mt-4 text-sm text-gray-500 text-center">
-        <p>Formatos soportados: MP3</p>
-        <p>Tamaño máximo: 50MB</p>
-      </div>
+      {isUploading && <p className="mt-4 text-white">El archivo se está subiendo...</p>}
     </div>
   );
-};
+}
