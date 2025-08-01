@@ -101,8 +101,8 @@ class AudioProcessor:
         # La estimación del tempo en chunks muy cortos puede ser poco fiable.
         # librosa.beat.beat_track devuelve un array, tomamos el primer elemento.
         # Requiere una envolvente de inicio.
-        tempo_val, _ = librosa.beat.beat_track(onset_env=onset_env, sr=sample_rate, start_bpm=120, aggregate=None)
-        tempo = float(tempo_val[0]) if tempo_val.size > 0 else 0.0 # Por defecto 0.0 si no se detecta tempo para el chunk
+        tempo_val, _ = librosa.beat.beat_track(onset_envelope=onset_env, sr=sample_rate, start_bpm=120)
+        tempo = float(tempo_val) if tempo_val is not None else 0.0
 
         return AudioChunkData(
             timestamp=timestamp,
