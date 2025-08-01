@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useMemo } from "react";
 import * as THREE from "three";
 import type { AudioChunkData, VisualizerConfig } from "../types";
-import { useAppContext } from "../context/AppContext";
+import { useAppContext } from "../hooks/useAppContext";
 
 export const VisualizerScene = () => {
   const { chunks, currentTime, isPlaying } = useAppContext();

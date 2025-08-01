@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { AppState, UploadResponse } from '../types';
-import { AppContext } from '../hooks/useAppContext';
+import { AppContext } from '../hooks/useAppContext.ts';
 
 
 export default function AppProvider ({ children }: {children: ReactNode}) {

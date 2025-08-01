@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useAppContext } from "./context/AppContext"; // Importa el hook del contexto
+import { useAppContext } from "./hooks/useAppContext"; // Importa el hook del contexto
 import { AudioUpload } from "./components/AudioUpload";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { VisualizerScene } from "./components/VisualizerScene";

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import type { UploadResponse } from "../types";
-import { useAppContext } from "../context/AppContext";
+import { useAppContext } from "../hooks/useAppContext";
 
 export const AudioUpload = () => {
   const {

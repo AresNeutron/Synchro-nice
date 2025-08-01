@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from "react";
-import { useAppContext } from "../context/AppContext";
+import { useAppContext } from "../hooks/useAppContext";
 
 export const AudioPlayer = () => {
   const { uploadResponse, handleTimeUpdate, handlePlayStateChange, isPlaying } =
