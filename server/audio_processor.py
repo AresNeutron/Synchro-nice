@@ -2,6 +2,7 @@ import librosa
 import numpy as np
 from typing import List, Generator
 import soundfile as sf
+import warnings
 from typing import Tuple
 from models.models import AudioChunkData, AudioFileInfo # Se asume que models.models contiene la definición actualizada de AudioChunkData
 
@@ -88,7 +89,9 @@ class AudioProcessor:
 
         # 9. Calcular características de croma (chroma_features)
         # Se promedia a través de los frames de tiempo para obtener un único valor por chunk
-        chroma = librosa.feature.chroma_stft(S=magnitude, sr=sample_rate, n_fft=self.n_fft, hop_length=self.hop_length)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            chroma = librosa.feature.chroma_stft(S=magnitude, sr=sample_rate, n_fft=self.n_fft, hop_length=self.hop_length)
         chroma_features = [float(val) for val in np.mean(chroma, axis=1)]
 
         # 10. Calcular fuerza del beat (beat_strength)
