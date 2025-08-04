@@ -65,7 +65,7 @@ export interface UseWebSocketReturn {
   connect: (sessionId: string) => void;
   disconnect: () => void;
   isConnected: boolean;
-  chunk: AudioChunkData | null;
+  chunks: AudioChunkData[];
   status: AudioProcessingStatus | null;
   error: string | null;
   sendGetChunkSignal: () => void;

@@ -13,7 +13,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
   const {
     connect,
     isConnected,
-    chunk,
+    chunks,
     status: processingStatus,
     error: webSocketError,
     sendGetChunkSignal,
@@ -54,7 +54,6 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     [connect]
   );
 
-  // modifica esta función para llame 
   const connectAndGetFirstChunk = useCallback(() => {
     if (isConnected) {
       sendGetChunkSignal();
@@ -72,7 +71,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     setFileInfo,
     sessionId,
     uploadFile,
-    chunk,
+    chunks,
     processingStatus,
     isConnected,
     webSocketError,
