@@ -1,24 +1,24 @@
 export interface AudioChunkData {
   timestamp: number;
-  frequencies: number[]; // 20 bandas de frecuencia
-  amplitude: number; // 0.0 a 1.0
-  brightness: number; // Centroide espectral normalizado
-  energy_center: number; // Frecuencia donde está la energía (Hz)
-  is_percussive: boolean; // Si hay percusión en este chunk
-  rolloff: number; // Rolloff espectral
-  zero_crossing_rate: number; // Tasa de cruces por cero
-  spectral_flatness: number; // Qué tan "ruidoso" o "tonal" es el sonido (0.0 a 1.0)
-  chroma_features: number[]; // Amplitud de cada una de las 12 notas musicales
-  beat_strength: number; // Cuán fuerte o claro es el pulso rítmico
-  tempo: number; // Velocidad de la música en pulsos por minuto (BPM)
+  frequencies: number[]; // 20 frequency bands
+  amplitude: number; // 0.0 to 1.0
+  brightness: number; // Normalized spectral centroid
+  energy_center: number; // Frequency where energy is concentrated (Hz)
+  is_percussive: boolean; // If there is percussion in this chunk
+  rolloff: number; // Spectral rolloff
+  zero_crossing_rate: number; // Zero-crossing rate
+  spectral_flatness: number; // How "noisy" or "tonal" the sound is (0.0 to 1.0)
+  chroma_features: number[]; // Amplitude of each of the 12 musical notes
+  beat_strength: number; // How strong or clear the rhythmic pulse is
+  tempo: number; // Music speed in beats per minute (BPM)
 }
 
 export interface AudioProcessingStatus {
   status: 'processing' | 'completed' | 'error' | 'ready';
-  progress: number; // 0.0 a 1.0
+  progress: number;
   total_chunks: number;
   processed_chunks: number;
-  duration: number; // Duración total en segundos
+  duration: number;
 }
 
 export interface WebSocketMessage {
@@ -52,14 +52,6 @@ export const APPSTATE = {
 
 export type AppState = typeof APPSTATE[keyof typeof APPSTATE];
 
-// Configuración del visualizador
-export interface VisualizerConfig {
-  numParticles: number;
-  bassRange: [number, number]; // Índices de frecuencias graves
-  midRange: [number, number]; // Índices de frecuencias medias
-  highRange: [number, number]; // Índices de frecuencias agudas
-}
-
 
 export interface UseWebSocketReturn {
   connect: (sessionId: string) => void;
@@ -70,3 +62,18 @@ export interface UseWebSocketReturn {
   error: string | null;
   sendGetChunkSignal: () => void;
 }
+
+export const initialVisualizerState: AudioChunkData = {
+    timestamp: 0,
+    frequencies: Array(20).fill(0),
+    amplitude: 0,
+    brightness: 0,
+    energy_center: 0,
+    is_percussive: false,
+    rolloff: 0,
+    zero_crossing_rate: 0,
+    spectral_flatness: 0,
+    chroma_features: Array(12).fill(0),
+    beat_strength: 0,
+    tempo: 0,
+};

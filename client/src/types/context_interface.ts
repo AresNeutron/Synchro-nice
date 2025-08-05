@@ -10,10 +10,10 @@ export interface AppContextType {
   sessionId: string | null;
   uploadFile: (file: File) => Promise<UploadResponse>;
 
-  // Datos del WebSocket
   chunks: AudioChunkData[];
   processingStatus: AudioProcessingStatus | null;
   isConnected: boolean;
   webSocketError: string | null;
-  connectAndGetFirstChunk: () => void;
+  sendGetChunkSignal: () => void;
+  getInitialChunks: () => void;
 }
