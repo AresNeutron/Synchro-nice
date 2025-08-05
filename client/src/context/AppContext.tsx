@@ -54,14 +54,16 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     [connect]
   );
 
-  const connectAndGetFirstChunk = useCallback(() => {
+  const getInitialChunks = useCallback(() => {
     if (isConnected) {
-      sendGetChunkSignal();
+      // Bucle para solicitar los 10 primeros chunks
+      for (let i = 0; i < 10; i++) {
+        sendGetChunkSignal();
+      }
     } else {
-      console.error("No hay sessionId disponible para conectar el WebSocket.");
+      console.error("No hay una conexión WebSocket activa.");
     }
-  }, [sendGetChunkSignal, isConnected]);
-
+  }, [isConnected, sendGetChunkSignal]);
 
   // El valor que se proporciona al contexto
   const contextValue = {
@@ -75,7 +77,8 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     processingStatus,
     isConnected,
     webSocketError,
-    connectAndGetFirstChunk,
+    sendGetChunkSignal,
+    getInitialChunks,
   };
 
   return (
