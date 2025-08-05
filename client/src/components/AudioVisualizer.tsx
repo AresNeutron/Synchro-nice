@@ -1,170 +1,133 @@
-import React, { useRef, useEffect, useState } from 'react';
-import * as THREE from 'three';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { useAppContext } from '../hooks/useAppContext';
-import type { AudioChunkData } from '../types';
+import { APPSTATE, initialVisualizerState, type AudioChunkData } from '../types';
 
-interface AudioVisualizerProps {
-  audioRef: React.RefObject<HTMLAudioElement>;
-}
+const Visualizer: React.FC = () => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const { chunks, isConnected, getInitialChunks, sendGetChunkSignal, appState } = useAppContext();
 
-const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioRef }) => {
-  // Referencia al elemento canvas para Three.js
-  const mountRef = useRef<HTMLDivElement>(null);
-  // Referencia para la escena, cámara y renderizador de Three.js
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  // Referencia para el objeto 3D que visualizaremos
-  const visualObjectRef = useRef<THREE.Mesh | null>(null);
+    const visualizerStateRef = useRef<AudioChunkData>(initialVisualizerState);
+    const lastChunkTimeRef = useRef<number>(0);
 
-  // Acceso al contexto de la aplicación para obtener los chunks de audio
-  const { chunks } = useAppContext()
+    const lerp = useCallback((start: number, end: number, t: number): number => {
+        return start * (1 - t) + end * t;
+    }, []);
 
-  // Estado para mantener el índice del chunk actual que se está visualizando
-  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
+    const animate = useCallback((timestamp: number) => {
+        if (appState !== APPSTATE.PLAYING) {
+            return;
+        }
 
-  // useEffect para inicializar la escena de Three.js
-  useEffect(() => {
-    if (!mountRef.current) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
 
-    // 1. Configuración de la escena
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
-    scene.background = new THREE.Color(0x0a0a0a); // Fondo oscuro
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-    // 2. Configuración de la cámara
-    const camera = new THREE.PerspectiveCamera(
-      75, // Campo de visión
-      mountRef.current.clientWidth / mountRef.current.clientHeight, // Aspect ratio
-      0.1, // Near clipping plane
-      1000 // Far clipping plane
-    );
-    camera.position.z = 5; // Posición inicial de la cámara
-    cameraRef.current = camera;
+        const { width, height } = canvas;
+        const state = visualizerStateRef.current;
 
-    // 3. Configuración del renderizador
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    rendererRef.current = renderer;
-    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    mountRef.current.appendChild(renderer.domElement);
+        // Lógica de dibujo y interpolación
+        if (chunks.length > 1) {
+            const currentChunk: AudioChunkData = chunks[0];
+            const nextChunk: AudioChunkData = chunks[1];
+            
+            // Calculamos el progreso de la interpolación en base al tiempo
+            const timeSinceLastChunk = timestamp - lastChunkTimeRef.current;
+            const progress = Math.min(1, timeSinceLastChunk / 200); // 200ms por chunk
 
-    // 4. Añadir un objeto 3D a la escena (una esfera como visualizador)
-    const geometry = new THREE.SphereGeometry(1, 32, 32); // Radio, segmentos de ancho, segmentos de alto
-    const material = new THREE.MeshBasicMaterial({ color: 0x0077ff }); // Color azul inicial
-    const sphere = new THREE.Mesh(geometry, material);
-    scene.add(sphere);
-    visualObjectRef.current = sphere;
+            Object.keys(initialVisualizerState).forEach(key => {
+                const stateKey = key as keyof AudioChunkData;
+                if (typeof initialVisualizerState[stateKey] === 'number') {
+                    (visualizerStateRef.current[stateKey] as number) = lerp(
+                        (currentChunk[stateKey] as number),
+                        (nextChunk[stateKey] as number),
+                        progress
+                    );
+                }
+            });
 
-    // 5. Añadir una luz ambiental para que el objeto sea visible
-    const ambientLight = new THREE.AmbientLight(0x404040); // Luz suave
-    scene.add(ambientLight);
+            // Limpiamos el canvas de forma controlada
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, width, height);
 
-    // 6. Añadir una luz direccional para dar más forma
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(1, 1, 1).normalize();
-    scene.add(directionalLight);
+            // ... (resto de la lógica de dibujo)
+            if (currentChunk.is_percussive) {
+                const flashEffect = Math.sin(timestamp * 0.01) * 0.5 + 0.5;
+                ctx.fillStyle = `rgba(255, 255, 255, ${flashEffect * state.beat_strength})`;
+                ctx.fillRect(0, 0, width, height);
+            }
+            
+            const radius = state.amplitude * 200 + 10;
+            const hue = state.brightness * 360;
+            ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+            ctx.beginPath();
+            ctx.arc(width / 2, height / 2, radius, 0, 2 * Math.PI);
+            ctx.fill();
 
-    // Función para manejar el redimensionamiento de la ventana
-    const handleResize = () => {
-      if (mountRef.current && cameraRef.current && rendererRef.current) {
-        cameraRef.current.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
-        cameraRef.current.updateProjectionMatrix();
-        rendererRef.current.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-      }
-    };
+            const barWidth = width / currentChunk.frequencies.length;
+            currentChunk.frequencies.forEach((freq, i) => {
+                const barHeight = freq * height * 0.5;
+                const barX = i * barWidth;
+                const barY = height - barHeight;
+                ctx.fillStyle = `rgba(0, 255, 255, ${freq})`;
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+            });
 
-    window.addEventListener('resize', handleResize);
+            const innerRadius = 150;
+            const outerRadius = 250;
+            state.chroma_features.forEach((chroma, i) => {
+                const startAngle = (Math.PI * 2 / 12) * i;
+                const endAngle = (Math.PI * 2 / 12) * (i + 1);
 
-    // Función de limpieza al desmontar el componente
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (mountRef.current && rendererRef.current) {
-        mountRef.current.removeChild(renderer.domElement);
-        rendererRef.current.dispose(); // Libera los recursos del renderizador
-      }
-    };
-  }, []); // El array vacío asegura que este efecto se ejecute solo una vez al montar
+                ctx.beginPath();
+                ctx.arc(width / 2, height / 2, outerRadius, startAngle, endAngle);
+                ctx.arc(width / 2, height / 2, innerRadius, endAngle, startAngle, true);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(255, 105, 180, ${chroma})`;
+                ctx.fill();
+            });
 
-  // useEffect para la lógica de animación y sincronización
-  useEffect(() => {
-    const animate = () => {
-      const audio = audioRef.current;
-      const scene = sceneRef.current;
-      const camera = cameraRef.current;
-      const renderer = rendererRef.current;
-      const visualObject = visualObjectRef.current;
-
-      if (!audio || !scene || !camera || !renderer || !visualObject) {
+        }
+        
         requestAnimationFrame(animate);
-        return;
-      }
+    }, [chunks, lerp, appState]);
 
-      // Obtener el tiempo actual de reproducción del audio
-      const currentTime = audio.currentTime;
+    useEffect(() => {
+        if (!isConnected) return;
 
-      // Buscar el chunk de audio relevante
-      // Avanzamos el índice solo si el timestamp del chunk actual ya ha pasado
-      let nextChunkIndex = currentChunkIndex;
-      while (nextChunkIndex < chunks.length && chunks[nextChunkIndex].timestamp < currentTime) {
-        nextChunkIndex++;
-      }
+        // Solo empezamos la animación y el envío de chunks cuando appState es PLAYING
+        let animationId: number;
+        let chunkInterval: NodeJS.Timeout | null = null;
+        
+        if (appState === APPSTATE.PLAYING) {
+            if (chunks.length === 0) {
+                getInitialChunks();
+            }
 
-      // Si hemos avanzado el índice, actualizamos el estado
-      if (nextChunkIndex !== currentChunkIndex) {
-        setCurrentChunkIndex(nextChunkIndex);
-      }
+            animationId = requestAnimationFrame(animate);
+            lastChunkTimeRef.current = performance.now();
 
-      // Usar el chunk actual para actualizar la visualización
-      const activeChunk: AudioChunkData | null = chunks[currentChunkIndex] || null;
+            chunkInterval = setInterval(() => {
+                sendGetChunkSignal();
+                lastChunkTimeRef.current = performance.now();
+            }, 200);
+        }
 
-      if (activeChunk) {
-        // Ejemplo de visualización:
-        // 1. Cambiar el tamaño de la esfera según la amplitud
-        const scale = 1 + activeChunk.amplitude * 2; // La amplitud va de 0 a 1, así que escalamos
-        visualObject.scale.set(scale, scale, scale);
+        return () => {
+            if (animationId) cancelAnimationFrame(animationId);
+            if (chunkInterval) clearInterval(chunkInterval);
+        };
+    }, [isConnected, appState, animate, chunks, getInitialChunks, sendGetChunkSignal]);
 
-        // 2. Cambiar el color de la esfera según la energía en las frecuencias
-        // Mapeamos las frecuencias a un color. Por ejemplo, más energía = color más vibrante.
-        // Aquí usamos una interpolación simple de color basada en la amplitud general
-        const colorIntensity = activeChunk.amplitude;
-        const baseColor = new THREE.Color(0x0077ff); // Azul
-        const peakColor = new THREE.Color(0xff0000); // Rojo
-        const interpolatedColor = baseColor.clone().lerp(peakColor, colorIntensity);
-        (visualObject.material as THREE.MeshBasicMaterial).color.copy(interpolatedColor);
-
-        // Opcional: Rotar el objeto según el tempo o la energía
-        visualObject.rotation.x += (activeChunk.tempo / 1200) * 0.01; // Velocidad de rotación basada en tempo
-        visualObject.rotation.y += (activeChunk.energy_center / 10000) * 0.01; // Velocidad de rotación basada en energy_center
-      } else {
-        // Si no hay chunk activo (ej. al inicio o final), restablecer la visualización
-        visualObject.scale.set(1, 1, 1);
-        (visualObject.material as THREE.MeshBasicMaterial).color.set(0x0077ff);
-      }
-
-      // Renderizar la escena
-      renderer.render(scene, camera);
-
-      // Solicitar el siguiente fotograma de animación
-      requestAnimationFrame(animate);
-    };
-
-    // Iniciar el bucle de animación
-    const animationFrameId = requestAnimationFrame(animate);
-
-    // Limpieza: detener el bucle de animación al desmontar el componente
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, [chunks, audioRef, currentChunkIndex]); // Dependencias: chunks y audioRef para que el efecto se re-ejecute si cambian
-
-  return (
-    <div
-      ref={mountRef}
-      style={{ width: '100%', height: '500px', background: '#000', borderRadius: '8px', overflow: 'hidden' }}
-    >
-      {/* El canvas de Three.js se montará aquí */}
-    </div>
-  );
+    return (
+        <canvas
+            ref={canvasRef}
+            width={800}
+            height={600}
+            style={{ border: '1px solid #333', background: '#000' }}
+        />
+    );
 };
 
-export default AudioVisualizer;
+export default Visualizer;
