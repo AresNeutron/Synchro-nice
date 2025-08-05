@@ -27,14 +27,14 @@ const Visualizer: React.FC = () => {
         const { width, height } = canvas;
         const state = visualizerStateRef.current;
 
-        // Lógica de dibujo y interpolación
+        // Drawing and interpolation logic
         if (chunks.length > 1) {
             const currentChunk: AudioChunkData = chunks[0];
             const nextChunk: AudioChunkData = chunks[1];
             
-            // Calculamos el progreso de la interpolación en base al tiempo
+            // Calculate interpolation progress based on time
             const timeSinceLastChunk = timestamp - lastChunkTimeRef.current;
-            const progress = Math.min(1, timeSinceLastChunk / 200); // 200ms por chunk
+            const progress = Math.min(1, timeSinceLastChunk / 200); // 200ms per chunk
 
             Object.keys(initialVisualizerState).forEach(key => {
                 const stateKey = key as keyof AudioChunkData;
@@ -47,11 +47,11 @@ const Visualizer: React.FC = () => {
                 }
             });
 
-            // Limpiamos el canvas de forma controlada
+            // Clear the canvas in a controlled way
             ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
             ctx.fillRect(0, 0, width, height);
 
-            // ... (resto de la lógica de dibujo)
+            // ... (rest of the drawing logic)
             if (currentChunk.is_percussive) {
                 const flashEffect = Math.sin(timestamp * 0.01) * 0.5 + 0.5;
                 ctx.fillStyle = `rgba(255, 255, 255, ${flashEffect * state.beat_strength})`;
@@ -96,7 +96,7 @@ const Visualizer: React.FC = () => {
     useEffect(() => {
         if (!isConnected) return;
 
-        // Solo empezamos la animación y el envío de chunks cuando appState es PLAYING
+        // We only start the animation and chunk sending when appState is PLAYING
         let animationId: number;
         let chunkInterval: NodeJS.Timeout | null = null;
         

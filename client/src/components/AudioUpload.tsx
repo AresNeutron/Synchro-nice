@@ -1,63 +1,176 @@
-import { useState, useRef, type ChangeEvent } from 'react';
-import { useAppContext } from '../hooks/useAppContext'; // Importa tu hook de contexto
-import { APPSTATE, type UploadResponse } from '../types';
+"use client"
+
+import type React from "react"
+
+import { useState, useRef, type ChangeEvent } from "react"
+import { useAppContext } from "../hooks/useAppContext"
+import { APPSTATE, type UploadResponse } from "../types"
+import { Music, Upload, Loader2, CheckCircle } from "lucide-react"
 
 export default function AudioUploader() {
-  const { uploadFile, appState } = useAppContext();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, appState } = useAppContext()
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
-      setSelectedFile(event.target.files[0]);
+      setSelectedFile(event.target.files[0])
     }
-  };
+  }
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true)
+    } else if (e.type === "dragleave") {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setSelectedFile(e.dataTransfer.files[0])
+    }
+  }
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      alert('Por favor, selecciona un archivo de audio primero.');
-      return;
+      alert("Please, select an audio file first.")
+      return
     }
 
-    const response: UploadResponse = await uploadFile(selectedFile);
-    console.log('¡Archivo subido exitosamente!');
-    console.log('Respuesta del backend:', response);
-  };
+    try {
+      const response: UploadResponse = await uploadFile(selectedFile)
+      console.log("File uploaded successfully!")
+      console.log("Backend response:", response)
+    } catch (error) {
+      console.error("Upload failed:", error)
+    }
+  }
 
-  const isUploading = appState === APPSTATE.UPLOADING;
+  const isUploading = appState === APPSTATE.UPLOADING
+  const isProcessing = appState === APPSTATE.PROCESSING
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 bg-gray-800 rounded-lg shadow-xl">
-      <h2 className="text-2xl font-bold text-white mb-4">Sube un archivo de audio</h2>
-      
+    <div className="space-y-4">
       <input
         type="file"
-        accept=".mp3, .wav, .aac" // Define los tipos de archivos aceptados
+        accept=".mp3, .wav, .aac, .m4a, .flac"
         onChange={handleFileChange}
         ref={fileInputRef}
         className="hidden"
       />
 
-      <button
+      {/* Drag & Drop Area */}
+      <div
+        className={`
+          relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer smooth-transition
+          ${
+            dragActive
+              ? "border-purple-400 bg-purple-400/10"
+              : "border-gray-600 hover:border-purple-400/50 hover:bg-purple-400/5"
+          }
+        `}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className="px-6 py-3 mb-4 text-lg font-semibold text-white transition-colors duration-200 bg-indigo-600 rounded-full hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
       >
-        {selectedFile ? `Archivo: ${selectedFile.name}` : 'Selecciona un archivo'}
-      </button>
+        <div className="flex flex-col items-center space-y-4">
+          <div
+            className={`
+            p-4 rounded-full smooth-transition
+            ${dragActive ? "bg-purple-400/20" : "bg-gray-700/50"}
+          `}
+          >
+            <Upload
+              className={`
+              w-8 h-8 smooth-transition
+              ${dragActive ? "text-purple-400" : "text-gray-400"}
+            `}
+            />
+          </div>
 
+          <div>
+            <p className="text-lg font-medium text-gray-200 mb-1">
+              {dragActive ? "Drop your audio file here" : "Choose an audio file"}
+            </p>
+            <p className="text-sm text-gray-400">or drag and drop • MP3, WAV, AAC, M4A, FLAC</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Selected File Info */}
+      {selectedFile && (
+        <div className="glass-effect rounded-lg p-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 rounded-lg bg-purple-400/20">
+              <Music className="w-5 h-5 text-purple-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-200 truncate">{selectedFile.name}</p>
+              <p className="text-xs text-gray-400">{formatFileSize(selectedFile.size)}</p>
+            </div>
+            {isProcessing && <CheckCircle className="w-5 h-5 text-green-400" />}
+          </div>
+        </div>
+      )}
+
+      {/* Upload Button */}
       <button
         onClick={handleUpload}
         disabled={isUploading || !selectedFile}
-        className={`px-6 py-3 text-lg font-semibold text-white rounded-full transition-colors duration-200 ${
-          isUploading
-            ? 'bg-gray-500 cursor-not-allowed'
-            : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500'
-        }`}
+        className={`
+          w-full btn-primary flex items-center justify-center space-x-2 py-3
+          ${isUploading || !selectedFile ? "opacity-50 cursor-not-allowed" : "hover:glow-effect"}
+        `}
       >
-        {isUploading ? 'Subiendo...' : 'Subir audio'}
+        {isUploading ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Uploading...</span>
+          </>
+        ) : (
+          <>
+            <Upload className="w-5 h-5" />
+            <span>Upload & Process</span>
+          </>
+        )}
       </button>
 
-      {isUploading && <p className="mt-4 text-white">El archivo se está subiendo...</p>}
+      {/* Status Messages */}
+      {isUploading && (
+        <div className="text-center">
+          <div className="inline-flex items-center space-x-2 text-sm text-purple-400">
+            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+            <span>Processing your audio file...</span>
+          </div>
+        </div>
+      )}
+
+      {isProcessing && (
+        <div className="text-center">
+          <div className="inline-flex items-center space-x-2 text-sm text-green-400">
+            <CheckCircle className="w-4 h-4" />
+            <span>Ready for visualization!</span>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  )
 }

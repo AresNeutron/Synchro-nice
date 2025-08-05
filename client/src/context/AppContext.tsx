@@ -33,7 +33,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-          throw new Error("Error al subir el archivo");
+          throw new Error("Error uploading the file");
         }
 
         const uploadResponse: UploadResponse = await response.json();
@@ -46,7 +46,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
 
         return uploadResponse;
       } catch (err) {
-        console.error("Error en la subida:", err);
+        console.error("Upload error:", err);
         setAppState(APPSTATE.ERROR);
         throw err;
       }
@@ -56,16 +56,16 @@ export default function AppProvider({ children }: { children: ReactNode }) {
 
   const getInitialChunks = useCallback(() => {
     if (isConnected) {
-      // Bucle para solicitar los 10 primeros chunks
+      // Loop to request the first 10 chunks
       for (let i = 0; i < 10; i++) {
         sendGetChunkSignal();
       }
     } else {
-      console.error("No hay una conexión WebSocket activa.");
+      console.error("No active WebSocket connection.");
     }
   }, [isConnected, sendGetChunkSignal]);
 
-  // El valor que se proporciona al contexto
+  // The value provided to the context
   const contextValue = {
     appState,
     setAppState,

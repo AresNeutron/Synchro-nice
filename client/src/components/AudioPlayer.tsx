@@ -1,89 +1,246 @@
-import React, { useRef, useEffect } from 'react';
-import { APPSTATE } from '../types';
-import { useAppContext } from '../hooks/useAppContext';
+"use client"
+
+import type React from "react"
+import { useRef, useEffect, useState } from "react"
+import { APPSTATE } from "../types"
+import { useAppContext } from "../hooks/useAppContext"
+import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Loader2 } from "lucide-react"
 
 const AudioPlayer: React.FC = () => {
-  const { appState, setAppState, sessionId, isConnected } = useAppContext();
-  const audioRef = useRef<HTMLAudioElement>(null);
-  
+  const { appState, setAppState, sessionId, isConnected } = useAppContext()
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [volume, setVolume] = useState(1)
+  const [isMuted, setIsMuted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
   const handlePlayPause = () => {
     if (audioRef.current) {
       if (appState === APPSTATE.PLAYING) {
-        audioRef.current.pause();
-        setAppState(APPSTATE.PAUSED);
+        audioRef.current.pause()
+        setAppState(APPSTATE.PAUSED)
       } else {
-        audioRef.current.play();
-        setAppState(APPSTATE.PLAYING);
+        audioRef.current.play()
+        setAppState(APPSTATE.PLAYING)
       }
     }
-  };
+  }
 
-   useEffect(() => {
-    let audioUrl: string | null = null;
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime)
+    }
+  }
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration)
+      setIsLoading(false)
+    }
+  }
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = Number.parseFloat(e.target.value)
+    if (audioRef.current) {
+      audioRef.current.currentTime = time
+      setCurrentTime(time)
+    }
+  }
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = Number.parseFloat(e.target.value)
+    setVolume(newVolume)
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume
+    }
+    setIsMuted(newVolume === 0)
+  }
+
+  const toggleMute = () => {
+    if (audioRef.current) {
+      if (isMuted) {
+        audioRef.current.volume = volume
+        setIsMuted(false)
+      } else {
+        audioRef.current.volume = 0
+        setIsMuted(true)
+      }
+    }
+  }
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60)
+    const seconds = Math.floor(time % 60)
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`
+  }
+
+  const skipTime = (seconds: number) => {
+    if (audioRef.current) {
+      const newTime = Math.max(0, Math.min(duration, currentTime + seconds))
+      audioRef.current.currentTime = newTime
+      setCurrentTime(newTime)
+    }
+  }
+
+  useEffect(() => {
+    let audioUrl: string | null = null
     if (sessionId && isConnected && audioRef.current) {
       const fetchAndSetAudio = async () => {
+        setIsLoading(true)
         try {
-          const response = await fetch(`http://localhost:8000/audio/${sessionId}`);
+          const response = await fetch(`http://localhost:8000/audio/${sessionId}`)
           if (!response.ok) {
-            throw new Error('Error al obtener el archivo de audio');
+            throw new Error("Error fetching the audio file")
           }
-          console.log(response)
 
-          const audioBlob = await response.blob();
-          
-          audioUrl = URL.createObjectURL(audioBlob);
-          
+          const audioBlob = await response.blob()
+          audioUrl = URL.createObjectURL(audioBlob)
+
           if (audioRef.current) {
-            audioRef.current.src = audioUrl;
-            console.log("URL de audio asignada:", audioUrl);
+            audioRef.current.src = audioUrl
+            console.log("Audio URL assigned:", audioUrl)
           }
-
         } catch (error) {
-          console.error('Error fetching audio:', error);
+          console.error("Error fetching audio:", error)
+          setIsLoading(false)
         }
-      };
-      
-      fetchAndSetAudio();
-    }
-  }, [sessionId, isConnected]);
+      }
 
-  const isPlaying = appState === APPSTATE.PLAYING;
+      fetchAndSetAudio()
+    }
+
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl)
+      }
+    }
+  }, [sessionId, isConnected])
+
+  const isPlaying = appState === APPSTATE.PLAYING
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
 
   return (
-    <div style={{ padding: '20px', textAlign: 'center' }}>
-      <audio ref={audioRef} onPlay={() => setAppState(APPSTATE.PLAYING)} onPause={() => setAppState(APPSTATE.PAUSED)} />
-      
-      <button 
-        onClick={handlePlayPause}
-        disabled={!isConnected}
-        style={{
-          padding: '10px 20px',
-          fontSize: '16px',
-          cursor: 'pointer',
-          backgroundColor: isPlaying ? 'red' : 'green',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          opacity: (!isConnected) ? 0.5 : 1,
-        }}
-      >
-        {isPlaying ? 'Pausar' : 'Reproducir'}
-      </button>
+    <div className="space-y-4">
+      <audio
+        ref={audioRef}
+        onPlay={() => setAppState(APPSTATE.PLAYING)}
+        onPause={() => setAppState(APPSTATE.PAUSED)}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onLoadStart={() => setIsLoading(true)}
+        onCanPlay={() => setIsLoading(false)}
+      />
 
-        <div style={{ marginTop: '20px' }}>
-          <p>Progreso del audio:</p>
-          <progress 
-            value={audioRef.current?.currentTime || 0} 
-            max={audioRef.current?.duration || 0}
-            style={{ width: '80%', height: '20px' }}
+      {/* Progress Bar */}
+      <div className="space-y-2">
+        <div className="relative">
+          <input
+            type="range"
+            min="0"
+            max={duration || 0}
+            value={currentTime}
+            onChange={handleSeek}
+            disabled={!isConnected || isLoading}
+            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+            style={{
+              background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${progress}%, #374151 ${progress}%, #374151 100%)`,
+            }}
           />
         </div>
 
-      <p style={{ marginTop: '10px', color: 'white' }}>Estado actual: {
-        Object.keys(APPSTATE).find(key => APPSTATE[key as keyof typeof APPSTATE] === appState)
-      }</p>
-    </div>
-  );
-};
+        <div className="flex justify-between text-sm text-gray-400">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
 
-export default AudioPlayer;
+      {/* Controls */}
+      <div className="flex items-center justify-center space-x-4">
+        <button
+          onClick={() => skipTime(-10)}
+          disabled={!isConnected || isLoading}
+          className="p-2 rounded-full glass-effect hover:bg-purple-400/20 smooth-transition disabled:opacity-50"
+        >
+          <SkipBack className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={handlePlayPause}
+          disabled={!isConnected || isLoading}
+          className={`
+            p-4 rounded-full smooth-transition disabled:opacity-50
+            ${
+              isPlaying
+                ? "bg-red-500/20 hover:bg-red-500/30 text-red-400"
+                : "bg-green-500/20 hover:bg-green-500/30 text-green-400"
+            }
+          `}
+        >
+          {isLoading ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : isPlaying ? (
+            <Pause className="w-6 h-6" />
+          ) : (
+            <Play className="w-6 h-6 ml-1" />
+          )}
+        </button>
+
+        <button
+          onClick={() => skipTime(10)}
+          disabled={!isConnected || isLoading}
+          className="p-2 rounded-full glass-effect hover:bg-purple-400/20 smooth-transition disabled:opacity-50"
+        >
+          <SkipForward className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Volume Control */}
+      <div className="flex items-center space-x-3">
+        <button onClick={toggleMute} className="p-2 rounded-full glass-effect hover:bg-purple-400/20 smooth-transition">
+          {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5 text-gray-400" />}
+        </button>
+
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.1"
+          value={isMuted ? 0 : volume}
+          onChange={handleVolumeChange}
+          className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+          style={{
+            background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${(isMuted ? 0 : volume) * 100}%, #374151 ${(isMuted ? 0 : volume) * 100}%, #374151 100%)`,
+          }}
+        />
+      </div>
+
+      {/* Status */}
+      <div className="text-center">
+        <div
+          className={`
+          inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm
+          ${
+            isPlaying
+              ? "bg-green-400/20 text-green-400"
+              : appState === APPSTATE.PAUSED
+                ? "bg-yellow-400/20 text-yellow-400"
+                : "bg-gray-400/20 text-gray-400"
+          }
+        `}
+        >
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isPlaying ? "bg-green-400 animate-pulse" : appState === APPSTATE.PAUSED ? "bg-yellow-400" : "bg-gray-400"
+            }`}
+          ></div>
+          <span>
+            {isLoading ? "Loading..." : isPlaying ? "Playing" : appState === APPSTATE.PAUSED ? "Paused" : "Ready"}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default AudioPlayer
