@@ -8,7 +8,7 @@ import type {
 
 export const useWebSocket = (): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
-  // Modificación: Ahora chunks es un array para guardar todos los pedazos.
+  // Modification: 'chunks' is now an array to store all the chunks.
   const [chunks, setChunks] = useState<AudioChunkData[]>([]);
   const [status, setStatus] = useState<AudioProcessingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -17,15 +17,15 @@ export const useWebSocket = (): UseWebSocketReturn => {
   const sessionIdRef = useRef<string | null>(null);
 
   const connect = useCallback((sessionId: string) => {
-    // Cerrar conexión existente si la hay
+    // Close existing connection if there is one
     if (wsRef.current) {
-      wsRef.current.close(1000, "Reconectando con nuevo sessionId");
+      wsRef.current.close(1000, "Reconnecting with new sessionId");
     }
 
-    // Reiniciar estados para la nueva conexión
+    // Reset states for the new connection
     setIsConnected(false);
     setStatus(null);
-    // Modificación: Limpiar el array de chunks al reconectar.
+    // Modification: Clear the chunks array on reconnect.
     setChunks([]);
     setError(null);
 
@@ -37,7 +37,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log("WebSocket conectado");
+        console.log("WebSocket connected");
         setIsConnected(true);
         setError(null);
       };
@@ -49,10 +49,14 @@ export const useWebSocket = (): UseWebSocketReturn => {
           switch (message.type) {
             case "chunk_data": {
               const chunkData = message.data as AudioChunkData;
-              // Modificación: Agregar el nuevo chunk al array.
-              setChunks(prevChunks => [...prevChunks, chunkData]);
-              console.log("RESPUESTA DEL SERVIDOR: PEDAZO: ");
-              console.log(chunkData);
+
+              setChunks(prevChunks => {
+                const newChunks = [...prevChunks, chunkData];
+                if (newChunks.length > 10) {
+                  return newChunks.slice(1);
+                }
+                return newChunks;
+              });
               break;
             }
             case "status": {
@@ -63,42 +67,41 @@ export const useWebSocket = (): UseWebSocketReturn => {
             case "error": {
               const errorData = message.data as { message: string };
               setError(errorData.message);
-              // Cerrar la conexión si el servidor envía un error
               wsRef.current?.close(1001, errorData.message);
               break;
             }
             default:
-              console.warn("Tipo de mensaje desconocido:", message.type);
+              console.warn("Unknown message type:", message.type);
           }
         } catch (err) {
-          console.error("Error parseando mensaje WebSocket:", err);
-          setError("Error parseando datos del servidor");
+          console.error("Error parsing WebSocket message:", err);
+          setError("Error parsing data from server");
         }
       };
 
       ws.onerror = () => {
         console.warn(
-          "Error WebSocket. El estado final se determinará con el cierre."
+          "WebSocket error. Final state will be determined on close."
         );
       };
 
       ws.onclose = (event) => {
-        console.log("WebSocket cerrado:", event.code, event.reason);
+        console.log("WebSocket closed:", event.code, event.reason);
         setIsConnected(false);
 
         if (event.code !== 1000) {
-          setError(`Conexión cerrada: ${event.reason || "Razón desconocida"}`);
+          setError(`Connection closed: ${event.reason || "Unknown reason"}`);
         }
       };
     } catch (err) {
-      console.error("Error creando WebSocket:", err);
-      setError("No se pudo establecer conexión WebSocket");
+      console.error("Error creating WebSocket:", err);
+      setError("Could not establish WebSocket connection");
     }
   }, []);
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.close(1000, "Desconexión intencional");
+      wsRef.current.close(1000, "Intentional disconnection");
       wsRef.current = null;
     }
     setIsConnected(false);
@@ -118,7 +121,6 @@ export const useWebSocket = (): UseWebSocketReturn => {
     };
   }, [disconnect]);
 
-  // Modificación: Devolvemos el array de chunks en lugar de un solo chunk.
   return {
     connect,
     disconnect,
