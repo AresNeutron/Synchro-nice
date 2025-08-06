@@ -42,12 +42,14 @@ export interface UploadResponse {
 
 
 export const APPSTATE = {
-    INIT: 0,
-    UPLOADING: 1,
-    PROCESSING: 2,
-    PLAYING: 3,
-    PAUSED: 4,
-    ERROR: 5,
+    INIT: 0, // initial state of the app
+    UPLOADING: 1, // audio was uploaded and is being processed in the server
+    SERVER_ERROR: 2, // some error took place when uploading audio
+    ISREADY: 3,  // audio was successfully processed and array of chunks is full with 10 elements
+    PLAYING: 4, // app is using the chunks to generate the video
+    PAUSED: 5, // generation of video is paused
+    VIDEO_ERROR: 6 // some error took place in the video generation
+    
 } as const;
 
 export type AppState = typeof APPSTATE[keyof typeof APPSTATE];
