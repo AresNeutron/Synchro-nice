@@ -78,6 +78,8 @@ export function initializeParticles(initialChunk: AudioChunkData): Particle[] {
       currentSize: baseSize,
       targetSize: baseSize,
       color: initialColor,
+      // La propiedad 'mesh' se asigna dentro del componente de React
+      // cuando el <mesh> se monta en el DOM virtual de Three.js.
     }
     newParticles.push(particle)
   }

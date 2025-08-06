@@ -1,64 +1,23 @@
-"use client"
-
 import type React from "react"
 import { useRef, useEffect, useMemo, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { useAppContext } from "../hooks/useAppContext"
 import { APPSTATE, initialVisualizerState, type AudioChunkData } from "../types"
 import * as THREE from "three"
+import { initializeParticles, type Particle } from "../utils/initParticles"
 
-interface Particle {
-  id: number
-  position: THREE.Vector3
-  velocity: THREE.Vector3
-  frequencyBand: number
-  baseSize: number
-  currentSize: number
-  targetSize: number
-  color: THREE.Color
-  mesh?: THREE.Mesh
-}
 
-// Particle Equalizer System Component
 function ParticleEqualizer() {
-  const { chunks} = useAppContext()
+  const { chunks } = useAppContext()
   const groupRef = useRef<THREE.Group>(null)
   const particlesRef = useRef<Particle[]>([])
   const [visualizerState, setVisualizerState] = useState<AudioChunkData>(initialVisualizerState)
 
-  // Initialize particles
-  const particles = useMemo(() => {
-    const particleCount = 200
-    const newParticles: Particle[] = []
-
-    for (let i = 0; i < particleCount; i++) {
-      const particle: Particle = {
-        id: i,
-        position: new THREE.Vector3((Math.random() - 0.5) * 15, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10),
-        velocity: new THREE.Vector3(
-          (Math.random() - 0.5) * 0.02,
-          (Math.random() - 0.5) * 0.02,
-          (Math.random() - 0.5) * 0.02,
-        ),
-        frequencyBand: Math.floor(Math.random() * 20), // Assign to one of 20 frequency bands
-        baseSize: 0.05 + Math.random() * 0.1,
-        currentSize: 0.05,
-        targetSize: 0.05,
-        color: new THREE.Color(0.5, 0.3, 0.8),
-      }
-      newParticles.push(particle)
-    }
-
-    particlesRef.current = newParticles
-    return newParticles
-  }, [])
-
-  // Update visualizer state from chunks
   useEffect(() => {
     if (chunks.length > 0) {
       const latestChunk = chunks[0]
+      console.log('✅ New audio chunk received:', latestChunk.timestamp);
       setVisualizerState((prevState) => {
-        // Smooth interpolation to new state
         return {
           timestamp: latestChunk.timestamp,
           frequencies: latestChunk.frequencies.map((freq, i) =>
@@ -81,32 +40,41 @@ function ParticleEqualizer() {
     }
   }, [chunks])
 
-  useFrame((state) => {
-    if (!groupRef.current) return
+  const particles = useMemo(() => {
+    if (chunks.length > 0) {
+      console.log('✨ Initializing particles with first chunk data');
+      const newParticles = initializeParticles(chunks[0]);
+      particlesRef.current = newParticles;
+      return newParticles;
+    }
+    console.log('⏳ Waiting for first audio chunk to initialize particles');
+    return [];
+  }, [chunks]);
 
-    const time = state.clock.elapsedTime
-    const deltaTime = state.clock.getDelta()
+  useFrame(() => {
+    if (!groupRef.current || particlesRef.current.length === 0) {
+      console.log('🚫 Skipping frame: Group or particles not ready.');
+      return;
+    }
 
     particlesRef.current.forEach((particle) => {
-      if (!particle.mesh) return
+      if (!particle.mesh) {
+        console.warn('⚠️ Particle without mesh found, skipping animation.');
+        return;
+      }
 
-      // Get frequency data for this particle's band
       const frequencyValue = visualizerState.frequencies[particle.frequencyBand] || 0
 
-      // Calculate target size based on frequency intensity (like equalizer bars)
       const frequencyMultiplier = 1 + frequencyValue * visualizerState.amplitude * 8
       particle.targetSize = particle.baseSize * frequencyMultiplier
 
-      // Smooth size interpolation (equalizer-like response)
       particle.currentSize = THREE.MathUtils.lerp(particle.currentSize, particle.targetSize, 0.15)
       particle.mesh.scale.setScalar(particle.currentSize)
 
-      // Color based on frequency band and audio characteristics
       const hue = (particle.frequencyBand / 20) * 0.8 + visualizerState.brightness * 0.3
       const saturation = 0.7 + visualizerState.spectral_flatness * 0.3
       const lightness = 0.3 + frequencyValue * 0.6 + visualizerState.amplitude * 0.3
 
-      // Add chroma influence
       const dominantChroma = visualizerState.chroma_features.indexOf(Math.max(...visualizerState.chroma_features))
       if (dominantChroma !== -1) {
         const chromaInfluence = visualizerState.chroma_features[dominantChroma] * 0.3
@@ -118,27 +86,21 @@ function ParticleEqualizer() {
       const material = particle.mesh.material as THREE.MeshBasicMaterial
       material.color.copy(particle.color)
 
-      // Movement like equalizer bars - more responsive to audio
       const tempoMultiplier = (visualizerState.tempo / 120) * 0.5 + 0.5
 
-      // Random direction changes based on beat strength and percussion
       if (visualizerState.is_percussive && Math.random() < visualizerState.beat_strength * 0.3) {
         particle.velocity.x += (Math.random() - 0.5) * 0.05 * visualizerState.beat_strength
         particle.velocity.y += (Math.random() - 0.5) * 0.05 * visualizerState.beat_strength
         particle.velocity.z += (Math.random() - 0.5) * 0.05 * visualizerState.beat_strength
       }
 
-      // Frequency-based movement direction
       const frequencyForce = frequencyValue * 0.02
-      particle.velocity.y += frequencyForce * (particle.frequencyBand < 10 ? 1 : -1) // Low freq up, high freq down
+      particle.velocity.y += frequencyForce * (particle.frequencyBand < 10 ? 1 : -1)
 
-      // Apply velocity with tempo influence
       particle.position.add(particle.velocity.clone().multiplyScalar(tempoMultiplier * (1 + visualizerState.amplitude)))
 
-      // Update mesh position
       particle.mesh.position.copy(particle.position)
 
-      // Boundary wrapping (like particles bouncing around)
       const boundarySize = 8
       if (Math.abs(particle.position.x) > boundarySize) {
         particle.velocity.x *= -0.8
@@ -153,16 +115,13 @@ function ParticleEqualizer() {
         particle.position.z = Math.sign(particle.position.z) * boundarySize
       }
 
-      // Damping
       particle.velocity.multiplyScalar(0.98)
 
-      // Add some random movement to keep particles alive
       particle.velocity.add(
         new THREE.Vector3((Math.random() - 0.5) * 0.001, (Math.random() - 0.5) * 0.001, (Math.random() - 0.5) * 0.001),
       )
     })
 
-    // Rotate entire group slowly
     groupRef.current.rotation.y += 0.002 * (visualizerState.tempo / 120)
   })
 
@@ -186,12 +145,10 @@ function ParticleEqualizer() {
   )
 }
 
-// Simple Camera Controller
 function CameraController() {
   const { camera } = useThree()
 
   useFrame(() => {
-    // Simple orbital camera movement
     const time = Date.now() * 0.0005
     camera.position.x = Math.cos(time) * 12
     camera.position.z = Math.sin(time) * 12
@@ -202,7 +159,6 @@ function CameraController() {
   return null
 }
 
-// Main Scene Component
 function VisualizerScene() {
   return (
     <>
@@ -212,7 +168,6 @@ function VisualizerScene() {
 
       <ParticleEqualizer />
 
-      {/* Dark background */}
       <mesh position={[0, 0, -15]} scale={[30, 30, 1]}>
         <planeGeometry />
         <meshBasicMaterial color="#0a0a0a" />
@@ -221,7 +176,6 @@ function VisualizerScene() {
   )
 }
 
-// Main Visualizer Component
 const Visualizer: React.FC = () => {
   const { isConnected, appState } = useAppContext()
 
@@ -241,7 +195,7 @@ const Visualizer: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-96 rounded-lg overflow-hidden bg-black">
+    <div className="w-full h-full rounded-lg overflow-hidden bg-black">
       <Canvas camera={{ position: [12, 0, 0], fov: 75 }} gl={{ antialias: true }}>
         <VisualizerScene />
       </Canvas>
