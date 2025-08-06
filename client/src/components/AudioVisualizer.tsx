@@ -1,5 +1,5 @@
 import type React from "react"
-import { useRef, useEffect, useMemo, useState } from "react"
+import { useRef, useEffect, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { useAppContext } from "../hooks/useAppContext"
 import { APPSTATE, initialVisualizerState, type AudioChunkData } from "../types"
@@ -11,7 +11,8 @@ function ParticleEqualizer() {
   const { chunks } = useAppContext()
   const groupRef = useRef<THREE.Group>(null)
   const particlesRef = useRef<Particle[]>([])
-  const [visualizerState, setVisualizerState] = useState<AudioChunkData>(initialVisualizerState)
+  const [visualizerState, setVisualizerState] = useState<AudioChunkData>(initialVisualizerState);
+  const [hasInitializedParticles, setHasInitializedParticles] = useState(false);
 
   useEffect(() => {
     if (chunks.length > 0) {
@@ -40,16 +41,15 @@ function ParticleEqualizer() {
     }
   }, [chunks])
 
-  const particles = useMemo(() => {
-    if (chunks.length > 0) {
+  // UseEffect para inicializar partículas UNA SOLA VEZ
+  useEffect(() => {
+    if (chunks.length > 0 && !hasInitializedParticles) {
       console.log('✨ Initializing particles with first chunk data');
       const newParticles = initializeParticles(chunks[0]);
       particlesRef.current = newParticles;
-      return newParticles;
+      setHasInitializedParticles(true);
     }
-    console.log('⏳ Waiting for first audio chunk to initialize particles');
-    return [];
-  }, [chunks]);
+  }, [chunks, hasInitializedParticles]);
 
   useFrame(() => {
     if (!groupRef.current || particlesRef.current.length === 0) {
@@ -127,7 +127,7 @@ function ParticleEqualizer() {
 
   return (
     <group ref={groupRef}>
-      {particles.map((particle) => (
+      {particlesRef.current.map((particle) => (
         <mesh
           key={particle.id}
           ref={(mesh) => {
