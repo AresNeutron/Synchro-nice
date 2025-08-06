@@ -183,6 +183,30 @@ body {
   animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Slide-in Animation for UserMessages */
+@keyframes slide-in-from-right-5 {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+
+.slide-in-from-right-5 {
+  animation-name: slide-in-from-right-5;
+}
+
+.duration-300 {
+  animation-duration: 300ms;
+}
+
 /* Visualizer Specific Styles */
 .visualizer-container {
   background: var(--bg-secondary);

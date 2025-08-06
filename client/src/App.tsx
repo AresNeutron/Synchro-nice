@@ -1,6 +1,7 @@
 import AudioPlayer from "./components/AudioPlayer"
 import AudioUploader from "./components/AudioUpload"
 import Visualizer from "./components/AudioVisualizer"
+import UserMessages from "./components/UserMessages"
 import { useAppContext } from "./hooks/useAppContext"
 import { Music, Waves, Headphones } from 'lucide-react'
 
@@ -9,6 +10,9 @@ function App() {
 
   return (
     <div className="min-h-screen p-4">
+      {/* User Messages - Fixed position for non-intrusive feedback */}
+      <UserMessages />
+
       {/* Header */}
       <header className="text-center mb-6">
         <div className="flex items-center justify-center gap-3 mb-3">
