@@ -1,10 +1,9 @@
-"use client"
+// THE LOGIC IN THIS COMPONENT IS COMPLETED, DO NOT TOUCH ANYTHING
 
 import type React from "react"
-
 import { useState, useRef, type ChangeEvent } from "react"
 import { useAppContext } from "../hooks/useAppContext"
-import { APPSTATE, type UploadResponse } from "../types"
+import { APPSTATE } from "../types"
 import { Music, Upload, Loader2, CheckCircle } from "lucide-react"
 
 export default function AudioUploader() {
@@ -40,22 +39,13 @@ export default function AudioUploader() {
   }
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      alert("Please, select an audio file first.")
-      return
-    }
-
-    try {
-      const response: UploadResponse = await uploadFile(selectedFile)
-      console.log("File uploaded successfully!")
-      console.log("Backend response:", response)
-    } catch (error) {
-      console.error("Upload failed:", error)
+    if (selectedFile) {
+      await uploadFile(selectedFile)
     }
   }
 
   const isUploading = appState === APPSTATE.UPLOADING
-  const isProcessing = appState === APPSTATE.PROCESSING
+  const isReady = appState === APPSTATE.ISREADY
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -126,7 +116,7 @@ export default function AudioUploader() {
               <p className="text-sm font-medium text-gray-200 truncate">{selectedFile.name}</p>
               <p className="text-xs text-gray-400">{formatFileSize(selectedFile.size)}</p>
             </div>
-            {isProcessing && <CheckCircle className="w-5 h-5 text-green-400" />}
+            {isReady && <CheckCircle className="w-5 h-5 text-green-400" />}
           </div>
         </div>
       )}
@@ -163,7 +153,7 @@ export default function AudioUploader() {
         </div>
       )}
 
-      {isProcessing && (
+      {isReady && (
         <div className="text-center">
           <div className="inline-flex items-center space-x-2 text-sm text-green-400">
             <CheckCircle className="w-4 h-4" />

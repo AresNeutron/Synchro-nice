@@ -6,6 +6,8 @@ import { APPSTATE } from "../types";
 import type { AppState, AudioFileInfo, UploadResponse } from "../types";
 
 export default function AppProvider({ children }: { children: ReactNode }) {
+  // we must create a component that shows the app state at any moment and gracefully
+  // tells the user the changes in the state of the app
   const [appState, setAppState] = useState<AppState>(APPSTATE.INIT);
   const [fileInfo, setFileInfo] = useState<AudioFileInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
   } = useWebSocket();
 
   const uploadFile = useCallback(
-    async (file: File): Promise<UploadResponse> => {
+    async (file: File) => {
       setAppState(APPSTATE.UPLOADING);
 
       const formData = new FormData();
@@ -40,14 +42,16 @@ export default function AppProvider({ children }: { children: ReactNode }) {
 
         setFileInfo(uploadResponse.file_info);
         setSessionId(uploadResponse.session_id);
-        setAppState(APPSTATE.PROCESSING);
+
+        // We must provide a message to the user to tell them the upload was successful
+        setAppState(APPSTATE.ISREADY)
+        // such a message would trigger when "appState" variable is set to ISREADY
 
         connect(uploadResponse.session_id)
 
-        return uploadResponse;
       } catch (err) {
         console.error("Upload error:", err);
-        setAppState(APPSTATE.ERROR);
+        setAppState(APPSTATE.SERVER_ERROR);
         throw err;
       }
     },

@@ -1,5 +1,3 @@
-"use client"
-
 import type React from "react"
 import { useRef, useEffect, useState } from "react"
 import { APPSTATE } from "../types"
@@ -103,6 +101,7 @@ const AudioPlayer: React.FC = () => {
           }
         } catch (error) {
           console.error("Error fetching audio:", error)
+          setAppState(APPSTATE.SERVER_ERROR)
           setIsLoading(false)
         }
       }
@@ -115,7 +114,7 @@ const AudioPlayer: React.FC = () => {
         URL.revokeObjectURL(audioUrl)
       }
     }
-  }, [sessionId, isConnected])
+  }, [sessionId, isConnected, setAppState])
 
   const isPlaying = appState === APPSTATE.PLAYING
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
