@@ -15,5 +15,4 @@ export interface AppContextType {
   isConnected: boolean;
   webSocketError: string | null;
   sendGetChunkSignal: () => void;
-  getInitialChunks: () => void;
 }

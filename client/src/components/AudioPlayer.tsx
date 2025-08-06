@@ -1,123 +1,165 @@
-import type React from "react"
-import { useRef, useEffect, useState } from "react"
-import { APPSTATE } from "../types"
-import { useAppContext } from "../hooks/useAppContext"
-import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Loader2 } from "lucide-react"
+import type React from "react";
+import { useRef, useEffect, useState } from "react";
+import { APPSTATE } from "../types";
+import { useAppContext } from "../hooks/useAppContext";
+import {
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  SkipBack,
+  SkipForward,
+  Loader2,
+} from "lucide-react";
 
 const AudioPlayer: React.FC = () => {
-  const { appState, setAppState, sessionId, isConnected } = useAppContext()
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [volume, setVolume] = useState(1)
-  const [isMuted, setIsMuted] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const { appState, setAppState, sessionId, isConnected, sendGetChunkSignal } =
+    useAppContext();
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handlePlayPause = () => {
     if (audioRef.current) {
       if (appState === APPSTATE.PLAYING) {
-        audioRef.current.pause()
-        setAppState(APPSTATE.PAUSED)
+        audioRef.current.pause();
+        setAppState(APPSTATE.PAUSED);
       } else {
-        audioRef.current.play()
-        setAppState(APPSTATE.PLAYING)
+        audioRef.current.play();
+        setAppState(APPSTATE.PLAYING);
       }
     }
-  }
+  };
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime)
+      setCurrentTime(audioRef.current.currentTime);
     }
-  }
+  };
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      setDuration(audioRef.current.duration)
-      setIsLoading(false)
+      setDuration(audioRef.current.duration);
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = Number.parseFloat(e.target.value)
+    const time = Number.parseFloat(e.target.value);
     if (audioRef.current) {
-      audioRef.current.currentTime = time
-      setCurrentTime(time)
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
     }
-  }
+  };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = Number.parseFloat(e.target.value)
-    setVolume(newVolume)
+    const newVolume = Number.parseFloat(e.target.value);
+    setVolume(newVolume);
     if (audioRef.current) {
-      audioRef.current.volume = newVolume
+      audioRef.current.volume = newVolume;
     }
-    setIsMuted(newVolume === 0)
-  }
+    setIsMuted(newVolume === 0);
+  };
 
   const toggleMute = () => {
     if (audioRef.current) {
       if (isMuted) {
-        audioRef.current.volume = volume
-        setIsMuted(false)
+        audioRef.current.volume = volume;
+        setIsMuted(false);
       } else {
-        audioRef.current.volume = 0
-        setIsMuted(true)
+        audioRef.current.volume = 0;
+        setIsMuted(true);
       }
     }
-  }
+  };
 
   const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60)
-    const seconds = Math.floor(time % 60)
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`
-  }
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
 
   const skipTime = (seconds: number) => {
     if (audioRef.current) {
-      const newTime = Math.max(0, Math.min(duration, currentTime + seconds))
-      audioRef.current.currentTime = newTime
-      setCurrentTime(newTime)
+      const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
     }
-  }
+  };
 
   useEffect(() => {
-    let audioUrl: string | null = null
+    let audioUrl: string | null = null;
     if (sessionId && isConnected && audioRef.current) {
       const fetchAndSetAudio = async () => {
-        setIsLoading(true)
+        setIsLoading(true);
         try {
-          const response = await fetch(`http://localhost:8000/audio/${sessionId}`)
+          const response = await fetch(
+            `http://localhost:8000/audio/${sessionId}`
+          );
           if (!response.ok) {
-            throw new Error("Error fetching the audio file")
+            throw new Error("Error fetching the audio file");
           }
 
-          const audioBlob = await response.blob()
-          audioUrl = URL.createObjectURL(audioBlob)
+          const audioBlob = await response.blob();
+          audioUrl = URL.createObjectURL(audioBlob);
 
           if (audioRef.current) {
-            audioRef.current.src = audioUrl
-            console.log("Audio URL assigned:", audioUrl)
+            audioRef.current.src = audioUrl;
+            console.log("Audio URL assigned:", audioUrl);
           }
         } catch (error) {
-          console.error("Error fetching audio:", error)
-          setAppState(APPSTATE.SERVER_ERROR)
-          setIsLoading(false)
+          console.error("Error fetching audio:", error);
+          setAppState(APPSTATE.SERVER_ERROR);
+          setIsLoading(false);
         }
-      }
+      };
 
-      fetchAndSetAudio()
+      // fill the "chunks" array with 10 chunks
+      const getInitialChunks = async () => {
+        for (let i = 0; i < 10; i++) {
+          sendGetChunkSignal();
+        }
+      };
+
+      fetchAndSetAudio();
+      getInitialChunks();
     }
 
     return () => {
       if (audioUrl) {
-        URL.revokeObjectURL(audioUrl)
+        URL.revokeObjectURL(audioUrl);
       }
-    }
-  }, [sessionId, isConnected, setAppState])
+    };
+  }, [sessionId, isConnected, setAppState, sendGetChunkSignal]);
 
-  const isPlaying = appState === APPSTATE.PLAYING
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    if (appState === APPSTATE.PLAYING) {
+      // Llamar inmediatamente la función para sincronizar con la reproducción
+      sendGetChunkSignal();
+
+      // Configurar un intervalo para llamar a la función cada 0.2 segundos
+      intervalId = setInterval(() => {
+        sendGetChunkSignal();
+      }, 200); // 200ms = 0.2 segundos
+    }
+
+    // Función de limpieza para detener el intervalo cuando el componente se desmonte
+    // o el estado de la app cambie (por ejemplo, a PAUSED)
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [appState, sendGetChunkSignal]);
+
+  const isPlaying = appState === APPSTATE.PLAYING;
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -196,8 +238,15 @@ const AudioPlayer: React.FC = () => {
 
       {/* Volume Control */}
       <div className="flex items-center space-x-3">
-        <button onClick={toggleMute} className="p-2 rounded-full glass-effect hover:bg-purple-400/20 smooth-transition">
-          {isMuted ? <VolumeX className="w-5 h-5 text-red-400" /> : <Volume2 className="w-5 h-5 text-gray-400" />}
+        <button
+          onClick={toggleMute}
+          className="p-2 rounded-full glass-effect hover:bg-purple-400/20 smooth-transition"
+        >
+          {isMuted ? (
+            <VolumeX className="w-5 h-5 text-red-400" />
+          ) : (
+            <Volume2 className="w-5 h-5 text-gray-400" />
+          )}
         </button>
 
         <input
@@ -209,7 +258,9 @@ const AudioPlayer: React.FC = () => {
           onChange={handleVolumeChange}
           className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
           style={{
-            background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${(isMuted ? 0 : volume) * 100}%, #374151 ${(isMuted ? 0 : volume) * 100}%, #374151 100%)`,
+            background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${
+              (isMuted ? 0 : volume) * 100
+            }%, #374151 ${(isMuted ? 0 : volume) * 100}%, #374151 100%)`,
           }}
         />
       </div>
@@ -223,23 +274,33 @@ const AudioPlayer: React.FC = () => {
             isPlaying
               ? "bg-green-400/20 text-green-400"
               : appState === APPSTATE.PAUSED
-                ? "bg-yellow-400/20 text-yellow-400"
-                : "bg-gray-400/20 text-gray-400"
+              ? "bg-yellow-400/20 text-yellow-400"
+              : "bg-gray-400/20 text-gray-400"
           }
         `}
         >
           <div
             className={`w-2 h-2 rounded-full ${
-              isPlaying ? "bg-green-400 animate-pulse" : appState === APPSTATE.PAUSED ? "bg-yellow-400" : "bg-gray-400"
+              isPlaying
+                ? "bg-green-400 animate-pulse"
+                : appState === APPSTATE.PAUSED
+                ? "bg-yellow-400"
+                : "bg-gray-400"
             }`}
           ></div>
           <span>
-            {isLoading ? "Loading..." : isPlaying ? "Playing" : appState === APPSTATE.PAUSED ? "Paused" : "Ready"}
+            {isLoading
+              ? "Loading..."
+              : isPlaying
+              ? "Playing"
+              : appState === APPSTATE.PAUSED
+              ? "Paused"
+              : "Ready"}
           </span>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default AudioPlayer
+export default AudioPlayer;

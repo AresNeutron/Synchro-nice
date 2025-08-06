@@ -58,17 +58,6 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     [connect]
   );
 
-  const getInitialChunks = useCallback(() => {
-    if (isConnected) {
-      // Loop to request the first 10 chunks
-      for (let i = 0; i < 10; i++) {
-        sendGetChunkSignal();
-      }
-    } else {
-      console.error("No active WebSocket connection.");
-    }
-  }, [isConnected, sendGetChunkSignal]);
-
   // The value provided to the context
   const contextValue = {
     appState,
@@ -82,7 +71,6 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     isConnected,
     webSocketError,
     sendGetChunkSignal,
-    getInitialChunks,
   };
 
   return (
