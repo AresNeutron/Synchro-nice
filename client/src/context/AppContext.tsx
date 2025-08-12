@@ -4,6 +4,7 @@ import { AppContext } from "../hooks/useAppContext";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { APPSTATE } from "../types";
 import type { AppState, AudioFileInfo, UploadResponse } from "../types";
+import { backend_url } from "../utils/url";
 
 export default function AppProvider({ children }: { children: ReactNode }) {
   // we must create a component that shows the app state at any moment and gracefully
@@ -29,7 +30,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
       formData.append("file", file);
 
       try {
-        const response = await fetch("http://localhost:8000/upload", {
+        const response = await fetch(backend_url + "/upload", {
           method: "POST",
           body: formData,
         });

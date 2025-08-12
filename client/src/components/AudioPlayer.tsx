@@ -11,6 +11,7 @@ import {
   SkipForward,
   Loader2,
 } from "lucide-react";
+import { backend_url } from "../utils/url";
 
 const AudioPlayer: React.FC = () => {
   const { appState, setAppState, sessionId, isConnected, sendGetChunkSignal } =
@@ -97,7 +98,7 @@ const AudioPlayer: React.FC = () => {
         setIsLoading(true);
         try {
           const response = await fetch(
-            `http://localhost:8000/audio/${sessionId}`
+            `${backend_url}/audio/${sessionId}`
           );
           if (!response.ok) {
             throw new Error("Error fetching the audio file");
@@ -149,8 +150,6 @@ const AudioPlayer: React.FC = () => {
       }, 200); // 200ms = 0.2 segundos
     }
 
-    // Función de limpieza para detener el intervalo cuando el componente se desmonte
-    // o el estado de la app cambie (por ejemplo, a PAUSED)
     return () => {
       if (intervalId) {
         clearInterval(intervalId);

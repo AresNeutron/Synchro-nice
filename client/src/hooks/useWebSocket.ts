@@ -5,6 +5,7 @@ import type {
   UseWebSocketReturn,
   WebSocketMessage,
 } from "../types";
+import { backend_url } from "../utils/url";
 
 export const useWebSocket = (): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
@@ -30,7 +31,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
     setError(null);
 
     sessionIdRef.current = sessionId;
-    const wsUrl = `ws://localhost:8000/ws/${sessionId}`;
+    const wsUrl = `${backend_url.replace("http://", "ws://")}/ws/${sessionId}`;
 
     try {
       const ws = new WebSocket(wsUrl);
