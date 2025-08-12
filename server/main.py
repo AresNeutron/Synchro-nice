@@ -17,9 +17,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://synchro-nice.vercel.app/",
+        "https://vercel.com/fabio-quevedos-projects/synchro-nice/46dWfCamhEtyM2BWA4k1vQMhFFTL",
         "https://synchro-nice-fabio-quevedos-projects.vercel.app/",
         "https://synchro-nice-git-master-fabio-quevedos-projects.vercel.app/",
-        "https://synchro-nice-agsdy7xjt-fabio-quevedos-projects.vercel.app/",
         ],
     allow_methods=["*"],
     allow_headers=["*"],
