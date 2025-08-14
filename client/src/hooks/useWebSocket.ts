@@ -10,8 +10,7 @@ import { backend_url } from "../utils/url";
 
 export const useWebSocket = (): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
-  // Modification: 'chunks' is now an array to store all the chunks.
-  const [chunks, setChunks] = useState<AudioChunkData[]>([]);
+  const [chunks, setChunks] = useState<AudioChunkData[]>([]); // Latest chunks for backward compatibility
   // Store the analysis data, only one at a time (updated every 5 chunks / 1 second)
   const [analysis, setAnalysis] = useState<AudioAnalysisMessage | null>(null);
   const [status, setStatus] = useState<AudioProcessingStatus | null>(null);
@@ -29,7 +28,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
     // Reset states for the new connection
     setIsConnected(false);
     setStatus(null);
-    // Modification: Clear the chunks array on reconnect.
+    // Clear all chunk data on reconnect
     setChunks([]);
     setAnalysis(null);
     setError(null);
@@ -55,6 +54,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
             case "chunk_data": {
               const chunkData = message.data as AudioChunkData;
 
+              // Keep latest chunks array for backward compatibility
               setChunks(prevChunks => {
                 const newChunks = [...prevChunks, chunkData];
                 if (newChunks.length > 10) {
@@ -133,6 +133,25 @@ export const useWebSocket = (): UseWebSocketReturn => {
     }
   }, []);
 
+  const sendTimeBasedRequest = useCallback((currentTime: number) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Request chunks for current time
+      const chunksMessage = { 
+        action: "get_chunks_for_time", 
+        current_time: currentTime,
+        buffer_ahead: 3.0
+      };
+      wsRef.current.send(JSON.stringify(chunksMessage));
+      
+      // Request analysis for current time
+      const analysisMessage = { 
+        action: "get_analysis_for_time", 
+        current_time: currentTime
+      };
+      wsRef.current.send(JSON.stringify(analysisMessage));
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       disconnect();
@@ -149,5 +168,8 @@ export const useWebSocket = (): UseWebSocketReturn => {
     error,
     sendGetChunkSignal,
     sendGetAnalysisSignal,
+    // un punto importante: si podemos obtener ambos datos por tiempo, entonces lo más probable es que
+    // los dos métodos anteriores no hagan falta
+    sendTimeBasedRequest,
   };
 };
