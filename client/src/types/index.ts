@@ -21,9 +21,67 @@ export interface AudioProcessingStatus {
   duration: number;
 }
 
+export interface TransitionAnalysis {
+  amplitude_delta: number;
+  brightness_delta: number;
+  beat_strength_delta: number;
+  frequency_deltas: number[];
+  transition_smoothness: number;
+  change_velocity: number;
+  energy_direction: 'increasing' | 'decreasing' | 'stable';
+}
+
+export interface TrendAnalysis {
+  amplitude_trend: number;
+  brightness_trend: number;
+  beat_strength_trend: number;
+  frequency_trends: number[];
+  overall_energy_trend: number;
+  trend_strength: number;
+  volatility: number;
+}
+
+export interface PatternAnalysis {
+  detected_patterns: Array<{
+    type: string;
+    period: number;
+    strength: number;
+    last_occurrence: number;
+  }>;
+  pattern_strength: number;
+  cycle_length: number | null;
+  pattern_confidence: number;
+}
+
+export interface PredictionAnalysis {
+  predicted_amplitude: number;
+  predicted_brightness: number;
+  predicted_beat_strength: number;
+  predicted_energy_change: 'buildup' | 'drop' | 'stable' | 'breakdown';
+  drop_probability: number;
+  buildup_probability: number;
+  break_probability: number;
+}
+
+export interface AudioRelationships {
+  transitions: TransitionAnalysis;
+  trends: TrendAnalysis;
+  patterns: PatternAnalysis;
+  predictions: PredictionAnalysis;
+  analysis_window_size: number;
+  buffer_size: number;
+}
+
+export interface AudioAnalysisMessage {
+  current_chunk: AudioChunkData;
+  relationships: AudioRelationships;
+  analysis_timestamp: number;
+  chunks_analyzed: number;
+}
+
 export interface WebSocketMessage {
-  type: 'chunk_data' | 'status' | 'error';
-  data: AudioChunkData | AudioProcessingStatus | { message: string };
+  type: 'chunk_data' | 'status' | 'error' | 'audio_analysis';
+  data: AudioChunkData | AudioProcessingStatus | { message: string } | AudioAnalysisMessage;
 }
 
 export interface AudioFileInfo {
@@ -60,9 +118,11 @@ export interface UseWebSocketReturn {
   disconnect: () => void;
   isConnected: boolean;
   chunks: AudioChunkData[];
+  analysis: AudioAnalysisMessage | null;
   status: AudioProcessingStatus | null;
   error: string | null;
   sendGetChunkSignal: () => void;
+  sendGetAnalysisSignal: () => void;
 }
 
 export const initialVisualizerState: AudioChunkData = {
