@@ -132,43 +132,87 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 message = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
                 message_json = json.loads(message)
                 
-                if message_json.get("action") == "get_chunk":
-                    # Intentar obtener un chunk individual de la cola
+                if message_json.get("action") == "get_chunks_for_time":
+                    # Obtener chunks basados en timestamp del audio
+                    current_time = message_json.get("current_time", 0.0)
+                    buffer_ahead = message_json.get("buffer_ahead", 3.0)  # 3 segundos adelante
+                    
+                    # Buscar chunks en el rango de tiempo [current_time, current_time + buffer_ahead]
+                    matching_chunks = []
+                    all_chunks = processed_audio_data.get(session_id, [])
+                    
+                    for chunk in all_chunks:
+                        if current_time <= chunk.timestamp <= current_time + buffer_ahead:
+                            matching_chunks.append(chunk)
+                    
+                    # Ordenar por timestamp para garantizar orden correcto
+                    matching_chunks.sort(key=lambda x: x.timestamp)
+                    
+                    # Enviar chunks en orden
+                    for chunk in matching_chunks:
+                        message = WebSocketMessage(type="chunk_data", data=chunk.model_dump())
+                        await websocket.send_text(message.to_json())
+                
+                elif message_json.get("action") == "get_chunk":
+                    # Mantener compatibilidad con el método anterior (para transición)
                     try:
                         chunk_to_send: AudioChunkData = chunk_queue.get_nowait()
                         
                         if chunk_to_send == "END_OF_STREAM":
                             status.status = "completed"
                             await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                            # Poner de vuelta el marcador para futuras lecturas
                             await chunk_queue.put("END_OF_STREAM")
                             break
                         else:
                             message = WebSocketMessage(type="chunk_data", data=chunk_to_send.model_dump())
                             await websocket.send_text(message.to_json())
                     except asyncio.QueueEmpty:
-                        # No hay chunks disponibles por ahora
                         pass
                 
+                elif message_json.get("action") == "get_analysis_for_time":
+                    # Obtener análisis más cercano al tiempo actual del audio
+                    current_time = message_json.get("current_time", 0.0)
+                    
+                    # Buscar análisis más reciente que no supere el current_time
+                    # Esto simula obtener el análisis que corresponde al momento actual
+                    best_analysis = None
+                    min_time_diff = float('inf')
+                    
+                    # TODO: MODIFICAR ESTRUCTURA DE DATOS DE ANÁLISIS DE CHUNK PARA INCLUIR TIMESTAMP
+                    # TODO: Y LUEGO ADAPTAR ESTE BLOQUE A LA NUEVA ESTRUCTURA
+                    # En una implementación real, tendríamos análisis almacenados por timestamp
+                    # Por ahora, intentamos obtener de la cola si hay disponible
+                    try:
+                        while not analysis_queue.empty():
+                            analysis_candidate = analysis_queue.get_nowait()
+                            if analysis_candidate != "END_OF_STREAM":
+                                time_diff = abs(analysis_candidate.analysis_timestamp - current_time)
+                                if time_diff < min_time_diff:
+                                    min_time_diff = time_diff
+                                    best_analysis = analysis_candidate
+                    except asyncio.QueueEmpty:
+                        pass
+                    
+                    if best_analysis:
+                        message = WebSocketMessage(type="audio_analysis", data=best_analysis.model_dump())
+                        await websocket.send_text(message.to_json())
+                
                 elif message_json.get("action") == "get_analysis":
-                    # Intentar obtener análisis completo de la cola
+                    # Mantener compatibilidad con método anterior
                     try:
                         analysis_to_send: AudioAnalysisMessage = analysis_queue.get_nowait()
                         
                         if analysis_to_send == "END_OF_STREAM":
                             status.status = "completed"
                             await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                            # Poner de vuelta el marcador para futuras lecturas
                             await analysis_queue.put("END_OF_STREAM")
                             break
                         else:
                             message = WebSocketMessage(type="audio_analysis", data=analysis_to_send.model_dump())
                             await websocket.send_text(message.to_json())
                             
-                            # Enviar actualización de estado junto con el análisis
                             await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
                     except asyncio.QueueEmpty:
-                        # No hay análisis disponibles por ahora
                         pass
                         
             except asyncio.TimeoutError:
