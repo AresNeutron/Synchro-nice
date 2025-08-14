@@ -4,17 +4,17 @@ import { APPSTATE } from "../types";
 import { useAppContext } from "../hooks/useAppContext";
 import {
   Play,
-  Pause,
   Volume2,
   VolumeX,
-  SkipBack,
-  SkipForward,
   Loader2,
 } from "lucide-react";
 import { backend_url } from "../utils/url";
 
 const AudioPlayer: React.FC = () => {
-  const { appState, setAppState, sessionId, isConnected, sendGetChunkSignal } =
+  const { appState, setAppState, sessionId, isConnected, 
+    // esto es preocupante: realmente funcionará eso de obtener los datos por tiempo?
+    
+    sendTimeBasedRequest } =
     useAppContext();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -22,16 +22,13 @@ const AudioPlayer: React.FC = () => {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(false);
 
-  const handlePlayPause = () => {
-    if (audioRef.current) {
-      if (appState === APPSTATE.PLAYING) {
-        audioRef.current.pause();
-        setAppState(APPSTATE.PAUSED);
-      } else {
-        audioRef.current.play();
-        setAppState(APPSTATE.PLAYING);
-      }
+  const handlePlay = () => {
+    if (audioRef.current && !hasStartedPlaying) {
+      audioRef.current.play();
+      setAppState(APPSTATE.PLAYING);
+      setHasStartedPlaying(true);
     }
   };
 
@@ -48,13 +45,7 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = Number.parseFloat(e.target.value);
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-      setCurrentTime(time);
-    }
-  };
+  // Seeking disabled for synchronized playback
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = Number.parseFloat(e.target.value);
@@ -83,13 +74,7 @@ const AudioPlayer: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const skipTime = (seconds: number) => {
-    if (audioRef.current) {
-      const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
-      audioRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
+  // Skip functionality disabled for synchronized playback
 
   useEffect(() => {
     let audioUrl: string | null = null;
@@ -118,15 +103,7 @@ const AudioPlayer: React.FC = () => {
         }
       };
 
-      // fill the "chunks" array with 10 chunks
-      const getInitialChunks = async () => {
-        for (let i = 0; i < 10; i++) {
-          sendGetChunkSignal();
-        }
-      };
-
       fetchAndSetAudio();
-      getInitialChunks();
     }
 
     return () => {
@@ -134,20 +111,19 @@ const AudioPlayer: React.FC = () => {
         URL.revokeObjectURL(audioUrl);
       }
     };
-  }, [sessionId, isConnected, setAppState, sendGetChunkSignal]);
+  }, [sessionId, isConnected, setAppState]);
 
 
+  // New time-based WebSocket synchronization
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
 
-    if (appState === APPSTATE.PLAYING) {
-      // Llamar inmediatamente la función para sincronizar con la reproducción
-      sendGetChunkSignal();
-
-      // Configurar un intervalo para llamar a la función cada 0.2 segundos
+    if (appState === APPSTATE.PLAYING && audioRef.current) {
+      // Request chunks based on current audio time every 500ms
       intervalId = setInterval(() => {
-        sendGetChunkSignal();
-      }, 200); // 200ms = 0.2 segundos
+        const currentAudioTime = audioRef.current?.currentTime || 0;
+        sendTimeBasedRequest(currentAudioTime);
+      }, 500); // Every 500ms for smoother updates
     }
 
     return () => {
@@ -155,7 +131,7 @@ const AudioPlayer: React.FC = () => {
         clearInterval(intervalId);
       }
     };
-  }, [appState, sendGetChunkSignal]);
+  }, [appState, sendTimeBasedRequest]);
 
   const isPlaying = appState === APPSTATE.PLAYING;
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -175,18 +151,14 @@ const AudioPlayer: React.FC = () => {
       {/* Progress Bar */}
       <div className="space-y-2">
         <div className="relative">
-          <input
-            type="range"
-            min="0"
-            max={duration || 0}
-            value={currentTime}
-            onChange={handleSeek}
-            disabled={!isConnected || isLoading}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-            style={{
-              background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${progress}%, #374151 ${progress}%, #374151 100%)`,
-            }}
-          />
+          <div
+            className="w-full h-2 bg-gray-700 rounded-lg relative"
+          >
+            <div 
+              className="h-full bg-purple-400 rounded-lg transition-all duration-200"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
 
         <div className="flex justify-between text-sm text-gray-400">
@@ -196,42 +168,26 @@ const AudioPlayer: React.FC = () => {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center space-x-4">
+      <div className="flex items-center justify-center">
         <button
-          onClick={() => skipTime(-10)}
-          disabled={!isConnected || isLoading}
-          className="p-2 rounded-full glass-effect hover:bg-purple-400/20 smooth-transition disabled:opacity-50"
-        >
-          <SkipBack className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={handlePlayPause}
-          disabled={!isConnected || isLoading}
+          onClick={handlePlay}
+          disabled={!isConnected || isLoading || hasStartedPlaying}
           className={`
             p-4 rounded-full smooth-transition disabled:opacity-50
             ${
-              isPlaying
-                ? "bg-red-500/20 hover:bg-red-500/30 text-red-400"
+              hasStartedPlaying
+                ? "bg-purple-500/20 text-purple-400 cursor-not-allowed"
                 : "bg-green-500/20 hover:bg-green-500/30 text-green-400"
             }
           `}
         >
           {isLoading ? (
             <Loader2 className="w-6 h-6 animate-spin" />
-          ) : isPlaying ? (
-            <Pause className="w-6 h-6" />
+          ) : hasStartedPlaying ? (
+            <Play className="w-6 h-6 ml-1 opacity-50" />
           ) : (
             <Play className="w-6 h-6 ml-1" />
           )}
-        </button>
-
-        <button
-          onClick={() => skipTime(10)}
-          disabled={!isConnected || isLoading}
-          className="p-2 rounded-full glass-effect hover:bg-purple-400/20 smooth-transition disabled:opacity-50"
-        >
-          <SkipForward className="w-5 h-5" />
         </button>
       </div>
 
@@ -292,8 +248,8 @@ const AudioPlayer: React.FC = () => {
               ? "Loading..."
               : isPlaying
               ? "Playing"
-              : appState === APPSTATE.PAUSED
-              ? "Paused"
+              : hasStartedPlaying
+              ? "Completed"
               : "Ready"}
           </span>
         </div>
