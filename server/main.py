@@ -5,7 +5,7 @@ import asyncio
 import os
 import json
 import uuid
-from audio_processor import AudioProcessor
+from server.services.audio_processor import AudioProcessor
 from models.models import WebSocketMessage, AudioProcessingStatus, AudioChunkData
 from typing import List, Dict
 
