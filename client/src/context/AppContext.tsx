@@ -17,9 +17,11 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     connect,
     isConnected,
     chunks,
+    analysis,
     status: processingStatus,
     error: webSocketError,
     sendGetChunkSignal,
+    sendGetAnalysisSignal,
   } = useWebSocket();
 
   const uploadFile = useCallback(
@@ -68,10 +70,12 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     sessionId,
     uploadFile,
     chunks,
+    analysis,
     processingStatus,
     isConnected,
     webSocketError,
     sendGetChunkSignal,
+    sendGetAnalysisSignal,
   };
 
   return (
