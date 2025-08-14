@@ -17,4 +17,5 @@ export interface AppContextType {
   webSocketError: string | null;
   sendGetChunkSignal: () => void;
   sendGetAnalysisSignal: () => void;
+  sendTimeBasedRequest: (currentTime: number) => void;
 }

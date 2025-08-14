@@ -123,6 +123,7 @@ export interface UseWebSocketReturn {
   error: string | null;
   sendGetChunkSignal: () => void;
   sendGetAnalysisSignal: () => void;
+  sendTimeBasedRequest: (currentTime: number) => void;
 }
 
 export const initialVisualizerState: AudioChunkData = {

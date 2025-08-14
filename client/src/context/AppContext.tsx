@@ -7,8 +7,6 @@ import type { AppState, AudioFileInfo, UploadResponse } from "../types";
 import { backend_url } from "../utils/url";
 
 export default function AppProvider({ children }: { children: ReactNode }) {
-  // we must create a component that shows the app state at any moment and gracefully
-  // tells the user the changes in the state of the app
   const [appState, setAppState] = useState<AppState>(APPSTATE.INIT);
   const [fileInfo, setFileInfo] = useState<AudioFileInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -22,6 +20,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     error: webSocketError,
     sendGetChunkSignal,
     sendGetAnalysisSignal,
+    sendTimeBasedRequest,
   } = useWebSocket();
 
   const uploadFile = useCallback(
@@ -76,6 +75,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     webSocketError,
     sendGetChunkSignal,
     sendGetAnalysisSignal,
+    sendTimeBasedRequest,
   };
 
   return (
