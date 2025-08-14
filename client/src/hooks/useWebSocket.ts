@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type {
   AudioChunkData,
+  AudioAnalysisMessage,
   AudioProcessingStatus,
   UseWebSocketReturn,
   WebSocketMessage,
@@ -11,6 +12,8 @@ export const useWebSocket = (): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
   // Modification: 'chunks' is now an array to store all the chunks.
   const [chunks, setChunks] = useState<AudioChunkData[]>([]);
+  // Store the analysis data, only one at a time (updated every 5 chunks / 1 second)
+  const [analysis, setAnalysis] = useState<AudioAnalysisMessage | null>(null);
   const [status, setStatus] = useState<AudioProcessingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +31,7 @@ export const useWebSocket = (): UseWebSocketReturn => {
     setStatus(null);
     // Modification: Clear the chunks array on reconnect.
     setChunks([]);
+    setAnalysis(null);
     setError(null);
 
     sessionIdRef.current = sessionId;
@@ -58,6 +62,12 @@ export const useWebSocket = (): UseWebSocketReturn => {
                 }
                 return newChunks;
               });
+              break;
+            }
+            case "audio_analysis": {
+              const analysisData = message.data as AudioAnalysisMessage;
+              setAnalysis(analysisData);
+              console.log("Analysis updated:", analysisData);
               break;
             }
             case "status": {
@@ -116,6 +126,13 @@ export const useWebSocket = (): UseWebSocketReturn => {
     }
   }, []);
 
+  const sendGetAnalysisSignal = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const message = { action: "get_analysis" };
+      wsRef.current.send(JSON.stringify(message));
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       disconnect();
@@ -127,8 +144,10 @@ export const useWebSocket = (): UseWebSocketReturn => {
     disconnect,
     isConnected,
     chunks,
+    analysis,
     status,
     error,
     sendGetChunkSignal,
+    sendGetAnalysisSignal,
   };
 };
