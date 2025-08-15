@@ -1,14 +1,23 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { AppContext } from "../hooks/useAppContext";
 import { APPSTATE } from "../types";
-import type { AppState, AudioFileInfo, UploadResponse } from "../types";
+import type { AppState, AudioFileInfo, UploadResponse, AudioChunkData, AudioAnalysisMessage } from "../types";
 import { backend_url } from "../utils/url";
 
 export default function AppProvider({ children }: { children: ReactNode }) {
   const [appState, setAppState] = useState<AppState>(APPSTATE.INIT);
   const [fileInfo, setFileInfo] = useState<AudioFileInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  
+  // Complete audio dataset storage (persists across re-renders, lost on page reload)
+  const audioChunks = useRef<AudioChunkData[]>([]);
+  const audioAnalysis = useRef<AudioAnalysisMessage[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState({
+    chunks: 0,
+    analysis: 0, 
+    isComplete: false
+  });
 
 
   const uploadFile = useCallback(
@@ -32,6 +41,11 @@ export default function AppProvider({ children }: { children: ReactNode }) {
 
         setFileInfo(uploadResponse.file_info);
         setSessionId(uploadResponse.session_id);
+        
+        // Start progressive loading of audio data
+        if (uploadResponse.processing_complete) {
+          await loadCompleteAudioData(uploadResponse.session_id, uploadResponse.total_chunks, uploadResponse.total_analysis);
+        }
 
         // We must provide a message to the user to tell them the upload was successful
         setAppState(APPSTATE.ISREADY)
@@ -45,6 +59,111 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+  
+  // Progressive loading of complete audio dataset
+  const loadCompleteAudioData = useCallback(async (sessionId: string, totalChunks: number, totalAnalysis: number) => {
+    try {
+      // Load chunks in batches
+      let chunkStart = 0;
+      const chunkBatchSize = 100;
+      
+      while (chunkStart < totalChunks) {
+        const response = await fetch(
+          `${backend_url}/session/${sessionId}/chunks?start=${chunkStart}&limit=${chunkBatchSize}`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Error loading chunks');
+        }
+        
+        const chunkBatch = await response.json();
+        audioChunks.current.push(...chunkBatch.chunks);
+        
+        setLoadingProgress(prev => ({
+          ...prev,
+          chunks: audioChunks.current.length
+        }));
+        
+        chunkStart += chunkBatchSize;
+        
+        // Small delay to prevent overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      
+      // Load analysis in batches
+      let analysisStart = 0;
+      const analysisBatchSize = 50;
+      
+      while (analysisStart < totalAnalysis) {
+        const response = await fetch(
+          `${backend_url}/session/${sessionId}/analysis?start=${analysisStart}&limit=${analysisBatchSize}`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Error loading analysis');
+        }
+        
+        const analysisBatch = await response.json();
+        audioAnalysis.current.push(...analysisBatch.analysis);
+        
+        setLoadingProgress(prev => ({
+          ...prev,
+          analysis: audioAnalysis.current.length
+        }));
+        
+        analysisStart += analysisBatchSize;
+        
+        // Small delay to prevent overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      
+      // Mark loading as complete
+      setLoadingProgress(prev => ({ ...prev, isComplete: true }));
+      console.log(`✅ Data loading complete: ${audioChunks.current.length} chunks, ${audioAnalysis.current.length} analysis`);
+      
+    } catch (error) {
+      console.error('Error loading complete audio data:', error);
+      setAppState(APPSTATE.SERVER_ERROR);
+    }
+  }, []);
+  
+  // Timestamp-based chunk retrieval for perfect synchronization
+  const getChunkByTimestamp = useCallback((timestamp: number): AudioChunkData | null => {
+    if (audioChunks.current.length === 0) return null;
+    
+    // Find chunk with closest timestamp (within 0.1 seconds tolerance)
+    let closestChunk: AudioChunkData | null = null;
+    let minDifference = Infinity;
+    
+    for (const chunk of audioChunks.current) {
+      const timeDiff = Math.abs(chunk.timestamp - timestamp);
+      if (timeDiff < minDifference && timeDiff <= 0.1) {
+        minDifference = timeDiff;
+        closestChunk = chunk;
+      }
+    }
+    
+    return closestChunk;
+  }, []);
+  
+  // Timestamp-based analysis retrieval
+  const getAnalysisByTimestamp = useCallback((timestamp: number): AudioAnalysisMessage | null => {
+    if (audioAnalysis.current.length === 0) return null;
+    
+    // Find analysis with closest timestamp (within 0.5 seconds tolerance)
+    let closestAnalysis: AudioAnalysisMessage | null = null;
+    let minDifference = Infinity;
+    
+    for (const analysis of audioAnalysis.current) {
+      const timeDiff = Math.abs(analysis.analysis_timestamp - timestamp);
+      if (timeDiff < minDifference && timeDiff <= 0.5) {
+        minDifference = timeDiff;
+        closestAnalysis = analysis;
+      }
+    }
+    
+    return closestAnalysis;
+  }, []);
 
   // The value provided to the context
   const contextValue = {
@@ -54,6 +173,11 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     setFileInfo,
     sessionId,
     uploadFile,
+    audioChunks: audioChunks.current,
+    audioAnalysis: audioAnalysis.current,
+    loadingProgress,
+    getChunkByTimestamp,
+    getAnalysisByTimestamp,
   };
 
   return (
