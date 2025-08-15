@@ -121,8 +121,6 @@ export interface UseWebSocketReturn {
   analysis: AudioAnalysisMessage | null;
   status: AudioProcessingStatus | null;
   error: string | null;
-  sendGetChunkSignal: () => void;
-  sendGetAnalysisSignal: () => void;
   sendTimeBasedRequest: (currentTime: number) => void;
 }
 

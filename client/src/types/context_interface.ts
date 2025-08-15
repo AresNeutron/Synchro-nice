@@ -15,7 +15,5 @@ export interface AppContextType {
   processingStatus: AudioProcessingStatus | null;
   isConnected: boolean;
   webSocketError: string | null;
-  sendGetChunkSignal: () => void;
-  sendGetAnalysisSignal: () => void;
   sendTimeBasedRequest: (currentTime: number) => void;
 }

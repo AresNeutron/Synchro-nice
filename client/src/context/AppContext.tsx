@@ -18,8 +18,6 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     analysis,
     status: processingStatus,
     error: webSocketError,
-    sendGetChunkSignal,
-    sendGetAnalysisSignal,
     sendTimeBasedRequest,
   } = useWebSocket();
 
@@ -73,8 +71,6 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     processingStatus,
     isConnected,
     webSocketError,
-    sendGetChunkSignal,
-    sendGetAnalysisSignal,
     sendTimeBasedRequest,
   };
 

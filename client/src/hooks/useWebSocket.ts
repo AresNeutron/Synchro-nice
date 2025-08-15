@@ -119,20 +119,6 @@ export const useWebSocket = (): UseWebSocketReturn => {
     sessionIdRef.current = null;
   }, []);
 
-  const sendGetChunkSignal = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const message = { action: "get_chunk" };
-      wsRef.current.send(JSON.stringify(message));
-    }
-  }, []);
-
-  const sendGetAnalysisSignal = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const message = { action: "get_analysis" };
-      wsRef.current.send(JSON.stringify(message));
-    }
-  }, []);
-
   const sendTimeBasedRequest = useCallback((currentTime: number) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       // Request chunks for current time
@@ -166,10 +152,6 @@ export const useWebSocket = (): UseWebSocketReturn => {
     analysis,
     status,
     error,
-    sendGetChunkSignal,
-    sendGetAnalysisSignal,
-    // un punto importante: si podemos obtener ambos datos por tiempo, entonces lo más probable es que
-    // los dos métodos anteriores no hagan falta
     sendTimeBasedRequest,
   };
 };
