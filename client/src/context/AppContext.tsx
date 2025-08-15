@@ -131,38 +131,32 @@ export default function AppProvider({ children }: { children: ReactNode }) {
   const getChunkByTimestamp = useCallback((timestamp: number): AudioChunkData | null => {
     if (audioChunks.current.length === 0) return null;
     
-    // Find chunk with closest timestamp (within 0.1 seconds tolerance)
-    let closestChunk: AudioChunkData | null = null;
-    let minDifference = Infinity;
+    // O(1) constant time lookup using fixed 0.2s intervals
+    // Chunks at: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, etc.
+    const chunkIndex = Math.floor(timestamp * 5); // timestamp / 0.2
     
-    for (const chunk of audioChunks.current) {
-      const timeDiff = Math.abs(chunk.timestamp - timestamp);
-      if (timeDiff < minDifference && timeDiff <= 0.1) {
-        minDifference = timeDiff;
-        closestChunk = chunk;
-      }
+    // Bounds check
+    if (chunkIndex < 0 || chunkIndex >= audioChunks.current.length) {
+      return null;
     }
     
-    return closestChunk;
+    return audioChunks.current[chunkIndex];
   }, []);
   
   // Timestamp-based analysis retrieval
   const getAnalysisByTimestamp = useCallback((timestamp: number): AudioAnalysisMessage | null => {
     if (audioAnalysis.current.length === 0) return null;
     
-    // Find analysis with closest timestamp (within 0.5 seconds tolerance)
-    let closestAnalysis: AudioAnalysisMessage | null = null;
-    let minDifference = Infinity;
+    // O(1) constant time lookup using fixed 1.0s intervals
+    // Analysis at: 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, etc.
+    const analysisIndex = Math.floor(timestamp); // timestamp / 1.0
     
-    for (const analysis of audioAnalysis.current) {
-      const timeDiff = Math.abs(analysis.analysis_timestamp - timestamp);
-      if (timeDiff < minDifference && timeDiff <= 0.5) {
-        minDifference = timeDiff;
-        closestAnalysis = analysis;
-      }
+    // Bounds check
+    if (analysisIndex < 0 || analysisIndex >= audioAnalysis.current.length) {
+      return null;
     }
     
-    return closestAnalysis;
+    return audioAnalysis.current[analysisIndex];
   }, []);
 
   // The value provided to the context
