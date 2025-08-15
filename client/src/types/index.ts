@@ -84,6 +84,8 @@ export interface UploadResponse {
   session_id: string;
   file_info: AudioFileInfo;
   total_chunks: number;
+  total_analysis: number;
+  processing_complete: boolean;
 }
 
 
