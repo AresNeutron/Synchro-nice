@@ -78,22 +78,6 @@ class AudioAnalysisMessage(BaseModel):
     analysis_timestamp: float  # Cuando se hizo este análisis
     chunks_analyzed: int  # Total de chunks analizados hasta ahora
 
-class AudioProcessingStatus(BaseModel):
-    """Estado del procesamiento de audio"""
-    status: str  # "processing", "completed", "error"
-    progress: float  # Porcentaje de completado (0.0 a 1.0)
-    total_chunks: int  # Total de chunks que se van a procesar
-    processed_chunks: int  # Chunks ya procesados
-    duration: float  # Duración total del archivo en segundos
-
-class WebSocketMessage(BaseModel):
-    """Mensaje que se envía por WebSocket"""
-    type: str  # Tipo de mensaje: "chunk_data", "audio_analysis", "status", "error"
-    data: Optional[dict] = None  # Datos del mensaje
-    
-    def to_json(self) -> str:
-        """Convierte el mensaje a JSON para enviar por WebSocket"""
-        return json.dumps(self.model_dump())
 
 class AudioFileInfo(BaseModel):
     """Información sobre el archivo de audio subido"""
