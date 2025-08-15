@@ -8,7 +8,7 @@ import { initializeParticles, type Particle } from "../utils/initParticles"
 
 
 function ParticleEqualizer() {
-  const { chunks } = useAppContext()
+  const { audioChunks: chunks } = useAppContext()
   const groupRef = useRef<THREE.Group>(null)
   const particlesRef = useRef<Particle[]>([])
   const [visualizerState, setVisualizerState] = useState<AudioChunkData>(initialVisualizerState);
@@ -177,9 +177,9 @@ function VisualizerScene() {
 }
 
 const Visualizer: React.FC = () => {
-  const { isConnected, appState } = useAppContext()
+  const {appState } = useAppContext()
 
-  if (!isConnected || appState !== APPSTATE.PLAYING) {
+  if (appState !== APPSTATE.PLAYING) {
     return (
       <div className="w-full h-96 bg-gray-900 rounded-lg flex items-center justify-center">
         <div className="text-center">
@@ -187,7 +187,7 @@ const Visualizer: React.FC = () => {
             <div className="w-8 h-8 bg-purple-400 rounded-full animate-pulse"></div>
           </div>
           <p className="text-gray-400">
-            {!isConnected ? "Waiting for connection..." : "Press play to start visualization"}
+            Press play to start visualization
           </p>
         </div>
       </div>
