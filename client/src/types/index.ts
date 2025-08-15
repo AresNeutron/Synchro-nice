@@ -13,14 +13,6 @@ export interface AudioChunkData {
   tempo: number; // Music speed in beats per minute (BPM)
 }
 
-export interface AudioProcessingStatus {
-  status: 'processing' | 'completed' | 'error' | 'ready';
-  progress: number;
-  total_chunks: number;
-  processed_chunks: number;
-  duration: number;
-}
-
 export interface TransitionAnalysis {
   amplitude_delta: number;
   brightness_delta: number;
@@ -79,10 +71,6 @@ export interface AudioAnalysisMessage {
   chunks_analyzed: number;
 }
 
-export interface WebSocketMessage {
-  type: 'chunk_data' | 'status' | 'error' | 'audio_analysis';
-  data: AudioChunkData | AudioProcessingStatus | { message: string } | AudioAnalysisMessage;
-}
 
 export interface AudioFileInfo {
   filename: string;
@@ -112,17 +100,6 @@ export const APPSTATE = {
 
 export type AppState = typeof APPSTATE[keyof typeof APPSTATE];
 
-
-export interface UseWebSocketReturn {
-  connect: (sessionId: string) => void;
-  disconnect: () => void;
-  isConnected: boolean;
-  chunks: AudioChunkData[];
-  analysis: AudioAnalysisMessage | null;
-  status: AudioProcessingStatus | null;
-  error: string | null;
-  sendTimeBasedRequest: (currentTime: number) => void;
-}
 
 export const initialVisualizerState: AudioChunkData = {
     timestamp: 0,
