@@ -11,11 +11,7 @@ import {
 import { backend_url } from "../utils/url";
 
 const AudioPlayer: React.FC = () => {
-  const { appState, setAppState, sessionId, isConnected, 
-    // esto es preocupante: realmente funcionará eso de obtener los datos por tiempo?
-    
-    sendTimeBasedRequest } =
-    useAppContext();
+  const { appState, setAppState, sessionId, loadingProgress } = useAppContext();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -45,8 +41,6 @@ const AudioPlayer: React.FC = () => {
     }
   };
 
-  // Seeking disabled for synchronized playback
-
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = Number.parseFloat(e.target.value);
     setVolume(newVolume);
@@ -74,11 +68,9 @@ const AudioPlayer: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  // Skip functionality disabled for synchronized playback
-
   useEffect(() => {
     let audioUrl: string | null = null;
-    if (sessionId && isConnected && audioRef.current) {
+    if (sessionId && loadingProgress.isComplete && audioRef.current) {
       const fetchAndSetAudio = async () => {
         setIsLoading(true);
         try {
@@ -111,27 +103,11 @@ const AudioPlayer: React.FC = () => {
         URL.revokeObjectURL(audioUrl);
       }
     };
-  }, [sessionId, isConnected, setAppState]);
+  }, [sessionId, loadingProgress.isComplete, setAppState]);
 
 
-  // New time-based WebSocket synchronization
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-
-    if (appState === APPSTATE.PLAYING && audioRef.current) {
-      // Request chunks based on current audio time every 500ms
-      intervalId = setInterval(() => {
-        const currentAudioTime = audioRef.current?.currentTime || 0;
-        sendTimeBasedRequest(currentAudioTime);
-      }, 500); // Every 500ms for smoother updates
-    }
-
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [appState, sendTimeBasedRequest]);
+  // Audio time synchronization is now handled by the visualizer
+  // No need for periodic requests - data is already loaded locally
 
   const isPlaying = appState === APPSTATE.PLAYING;
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -171,7 +147,7 @@ const AudioPlayer: React.FC = () => {
       <div className="flex items-center justify-center">
         <button
           onClick={handlePlay}
-          disabled={!isConnected || isLoading || hasStartedPlaying}
+          disabled={!loadingProgress.isComplete || isLoading || hasStartedPlaying}
           className={`
             p-4 rounded-full smooth-transition disabled:opacity-50
             ${
@@ -245,7 +221,9 @@ const AudioPlayer: React.FC = () => {
           ></div>
           <span>
             {isLoading
-              ? "Loading..."
+              ? "Loading Audio..."
+              : !loadingProgress.isComplete
+              ? `Loading Data... ${loadingProgress.chunks}/${loadingProgress.chunks + loadingProgress.analysis}`
               : isPlaying
               ? "Playing"
               : hasStartedPlaying
