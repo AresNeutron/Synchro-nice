@@ -15,7 +15,9 @@ export default function AppProvider({ children }: { children: ReactNode }) {
   const audioAnalysis = useRef<AudioAnalysisMessage[]>([]);
   const [loadingProgress, setLoadingProgress] = useState({
     chunks: 0,
-    analysis: 0, 
+    analysis: 0,
+    totalChunks: 0,
+    totalAnalysis: 0,
     isComplete: false
   });
 
@@ -62,10 +64,17 @@ export default function AppProvider({ children }: { children: ReactNode }) {
   
   // Progressive loading of complete audio dataset
   const loadCompleteAudioData = useCallback(async (sessionId: string, totalChunks: number, totalAnalysis: number) => {
+    // Set total values for progress calculation
+    setLoadingProgress(prev => ({
+      ...prev,
+      totalChunks,
+      totalAnalysis
+    }));
+    
     try {
       // Load chunks in batches
       let chunkStart = 0;
-      const chunkBatchSize = 100;
+      const chunkBatchSize = 10;
       
       while (chunkStart < totalChunks) {
         const response = await fetch(

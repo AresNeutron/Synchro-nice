@@ -124,7 +124,44 @@ const AudioPlayer: React.FC = () => {
         onCanPlay={() => setIsLoading(false)}
       />
 
-      {/* Progress Bar */}
+      {/* Data Loading Progress Bar */}
+      {!loadingProgress.isComplete && (
+        <div className="space-y-2">
+          <div className="text-sm text-gray-400 text-center">
+            Loading Audio Data...
+          </div>
+          
+          {/* Chunks Progress */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Chunks</span>
+              <span>{loadingProgress.chunks} / {loadingProgress.totalChunks}</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-700 rounded-full">
+              <div 
+                className="h-full bg-blue-400 rounded-full transition-all duration-300"
+                style={{ width: `${loadingProgress.totalChunks > 0 ? (loadingProgress.chunks / loadingProgress.totalChunks) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+          
+          {/* Analysis Progress */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Analysis</span>
+              <span>{loadingProgress.analysis} / {loadingProgress.totalAnalysis}</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-700 rounded-full">
+              <div 
+                className="h-full bg-purple-400 rounded-full transition-all duration-300"
+                style={{ width: `${loadingProgress.totalAnalysis > 0 ? (loadingProgress.analysis / loadingProgress.totalAnalysis) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audio Progress Bar */}
       <div className="space-y-2">
         <div className="relative">
           <div

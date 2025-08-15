@@ -13,7 +13,7 @@ export interface AppContextType {
   // Complete audio dataset stored locally
   audioChunks: AudioChunkData[];
   audioAnalysis: AudioAnalysisMessage[];
-  loadingProgress: { chunks: number; analysis: number; isComplete: boolean };
+  loadingProgress: { chunks: number; analysis: number; totalChunks: number; totalAnalysis: number; isComplete: boolean };
   
   // Function to get chunk by timestamp for synchronization
   getChunkByTimestamp: (timestamp: number) => AudioChunkData | null;
