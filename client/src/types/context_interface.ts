@@ -1,4 +1,4 @@
-import type { AppState, AudioFileInfo, AudioChunkData, AudioAnalysisMessage, AudioProcessingStatus } from './index';
+import type { AppState, AudioFileInfo } from './index';
 
 export interface AppContextType {
   appState: AppState;
@@ -9,11 +9,4 @@ export interface AppContextType {
 
   sessionId: string | null;
   uploadFile: (file: File) => Promise<void>;
-
-  chunks: AudioChunkData[];
-  analysis: AudioAnalysisMessage | null;
-  processingStatus: AudioProcessingStatus | null;
-  isConnected: boolean;
-  webSocketError: string | null;
-  sendTimeBasedRequest: (currentTime: number) => void;
 }
