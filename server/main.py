@@ -1,9 +1,7 @@
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
-import asyncio
 import os
-import json
 import uuid
 from services.audio_processor import AudioProcessor
 from services.audio_analyzer import AudioAnalyzer
@@ -119,12 +117,20 @@ async def upload_audio(file: UploadFile = File(...)):
         
         print(f"Procesamiento completo: {chunk_counter} chunks, {len(all_analysis)} análisis")
         
+        # Guardar información de sesión básica para el frontend
+        current_sessions[session_id] = {
+            "file_info": file_info,
+            "total_chunks": total_chunks,
+            "total_analysis": len(all_analysis),
+            "processing_complete": True
+        }
+        
         return {
             "session_id": session_id,
             "file_info": file_info.model_dump(),
             "total_chunks": total_chunks,
-            "chunks": [chunk.model_dump() for chunk in all_chunks],
-            "analysis": [analysis.model_dump() for analysis in all_analysis]
+            "total_analysis": len(all_analysis),
+            "processing_complete": True
         }
         
     except Exception as e:
@@ -137,17 +143,43 @@ async def root():
     return {"message": "Synchro-Nice Backend API"}
 
 @app.get("/session/{session_id}/chunks")
-async def get_processed_chunks(session_id: str):
-    """Endpoint para obtener chunks ya procesados (útil para implementar pausa/retroceso)"""
+async def get_chunks_batch(session_id: str, start: int = 0, limit: int = 100):
+    """Endpoint para obtener chunks en lotes progresivos"""
     
     if session_id not in processed_audio_data:
         return {"error": "Sesión no encontrada"}
     
-    chunks = processed_audio_data[session_id]
+    all_chunks = processed_audio_data[session_id]
+    end_index = min(start + limit, len(all_chunks))
+    chunk_batch = all_chunks[start:end_index]
+    
     return {
         "session_id": session_id,
-        "total_chunks": len(chunks),
-        "chunks": [chunk.model_dump() for chunk in chunks]
+        "start": start,
+        "end": end_index,
+        "total_chunks": len(all_chunks),
+        "has_more": end_index < len(all_chunks),
+        "chunks": [chunk.model_dump() for chunk in chunk_batch]
+    }
+
+@app.get("/session/{session_id}/analysis")
+async def get_analysis_batch(session_id: str, start: int = 0, limit: int = 50):
+    """Endpoint para obtener análisis en lotes progresivos"""
+    
+    if session_id not in processed_analysis_data:
+        return {"error": "Sesión no encontrada"}
+    
+    all_analysis = processed_analysis_data[session_id]
+    end_index = min(start + limit, len(all_analysis))
+    analysis_batch = all_analysis[start:end_index]
+    
+    return {
+        "session_id": session_id,
+        "start": start,
+        "end": end_index,
+        "total_analysis": len(all_analysis),
+        "has_more": end_index < len(all_analysis),
+        "analysis": [analysis.model_dump() for analysis in analysis_batch]
     }
 
 @app.get("/audio/{session_id}")
