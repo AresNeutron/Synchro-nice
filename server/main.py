@@ -34,6 +34,7 @@ audio_processor = AudioProcessor(chunk_duration=0.2)
 
 # Almacenamiento temporal de datos procesados
 processed_audio_data: Dict[str, List[AudioChunkData]] = {}  # {session_id: [AudioChunkData, ...]}
+processed_analysis_data: Dict[str, List[AudioAnalysisMessage]] = {}  # {session_id: [AudioAnalysisMessage, ...]}
 current_sessions = {}  # {session_id: {"file_info": ..., "status": ..., "analyzer": ...}}
 
 TEMP_BASE_DIR = os.path.join("audio_uploads")
@@ -41,7 +42,7 @@ os.makedirs(TEMP_BASE_DIR, exist_ok=True) # Asegurarse de que el directorio base
 
 @app.post("/upload")
 async def upload_audio(file: UploadFile = File(...)):
-    """Endpoint para subir archivo de audio MP3"""
+    """Endpoint para subir archivo de audio MP3 y procesar todos los chunks inmediatamente"""
     
     if not file.filename.lower().endswith('.mp3'):
         return {"error": "Solo se permiten archivos MP3"}
@@ -67,38 +68,80 @@ async def upload_audio(file: UploadFile = File(...)):
         chunk_samples = int(audio_processor.chunk_duration * sample_rate)
         total_chunks = len(audio_data) // chunk_samples + (1 if len(audio_data) % chunk_samples else 0)
         
-        # Crear analizador para esta sesión
-        analyzer = AudioAnalyzer(analysis_window_size=25)  # 5 segundos de ventana
+        print(f"Procesando {total_chunks} chunks para sesión {session_id}...")
         
-        # Guardar información de la sesión
+        # Crear analizador para esta sesión
+        analyzer = AudioAnalyzer(analysis_window_size=25)
+        
+        # Procesar TODOS los chunks inmediatamente
+        all_chunks = []
+        all_analysis = []
+        
+        chunk_generator = audio_processor.process_chunks(audio_data, sample_rate)
+        chunk_counter = 0
+        
+        for chunk_data in chunk_generator:
+            # Guardar el chunk
+            all_chunks.append(chunk_data)
+            
+            # Añadir chunk al analizador
+            analyzer.add_chunk(chunk_data)
+            
+            # Cada 5 chunks (1 segundo), hacer análisis completo
+            chunk_counter += 1
+            if chunk_counter % 5 == 0:
+                relationships = analyzer.analyze_relationships()
+                
+                if relationships:
+                    analysis_message = AudioAnalysisMessage(
+                        current_chunk=chunk_data,
+                        relationships=relationships,
+                        analysis_timestamp=chunk_data.timestamp,
+                        chunks_analyzed=chunk_counter
+                    )
+                    all_analysis.append(analysis_message)
+        
+        # Análisis final si quedan chunks sin analizar
+        if chunk_counter % 5 != 0:
+            relationships = analyzer.analyze_relationships()
+            if relationships and chunk_counter > 0:
+                analysis_message = AudioAnalysisMessage(
+                    current_chunk=all_chunks[-1],
+                    relationships=relationships,
+                    analysis_timestamp=all_chunks[-1].timestamp,
+                    chunks_analyzed=chunk_counter
+                )
+                all_analysis.append(analysis_message)
+        
+        # Guardar datos procesados para acceso posterior si es necesario
+        processed_audio_data[session_id] = all_chunks
+        processed_analysis_data[session_id] = all_analysis
+        
+        # Guardar información básica de la sesión (sin necesidad de background task)
         current_sessions[session_id] = {
             "file_info": file_info,
-            "audio_data": audio_data,
-            "sample_rate": sample_rate,
-            "analyzer": analyzer,
             "status": AudioProcessingStatus(
-                status="ready",
-                progress=0.0,
+                status="completed",
+                progress=1.0,
                 total_chunks=total_chunks,
-                processed_chunks=0,
+                processed_chunks=chunk_counter,
                 duration=file_info.duration
-            ),
-            "chunk_queue": asyncio.Queue(maxsize=50),  # Cola para chunks individuales
-            "analysis_queue": asyncio.Queue(maxsize=10),  # Cola para análisis completos
-            "task": None  # La tarea de procesamiento se crea en el WebSocket
+            )
         }
         
-        # Inicializar almacenamiento de datos procesados
-        processed_audio_data[session_id] = []
+        print(f"Procesamiento completo: {chunk_counter} chunks, {len(all_analysis)} análisis")
         
         return {
             "session_id": session_id,
             "file_info": file_info.model_dump(),
-            "total_chunks": total_chunks
+            "total_chunks": total_chunks,
+            "chunks": [chunk.model_dump() for chunk in all_chunks],
+            "analysis": [analysis.model_dump() for analysis in all_analysis]
         }
         
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error procesando archivo: {e}")
+        return {"error": f"Error procesando archivo: {str(e)}"}
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -114,8 +157,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         return
 
     status: AudioProcessingStatus = session_data["status"]
-    chunk_queue: asyncio.Queue = session_data["chunk_queue"]
-    analysis_queue: asyncio.Queue = session_data["analysis_queue"]
 
     # Iniciar la tarea de procesamiento si no existe
     if not session_data["task"]:
@@ -153,114 +194,34 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         message = WebSocketMessage(type="chunk_data", data=chunk.model_dump())
                         await websocket.send_text(message.to_json())
                 
-                elif message_json.get("action") == "get_chunk":
-                    # Mantener compatibilidad con el método anterior (para transición)
-                    try:
-                        chunk_to_send: AudioChunkData = chunk_queue.get_nowait()
-                        
-                        if chunk_to_send == "END_OF_STREAM":
-                            status.status = "completed"
-                            await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                            await chunk_queue.put("END_OF_STREAM")
-                            break
-                        else:
-                            message = WebSocketMessage(type="chunk_data", data=chunk_to_send.model_dump())
-                            await websocket.send_text(message.to_json())
-                    except asyncio.QueueEmpty:
-                        pass
                 
                 elif message_json.get("action") == "get_analysis_for_time":
                     # Obtener análisis más cercano al tiempo actual del audio
                     current_time = message_json.get("current_time", 0.0)
                     
-                    # Buscar análisis más reciente que no supere el current_time
-                    # Esto simula obtener el análisis que corresponde al momento actual
+                    # Buscar análisis más cercano al tiempo actual
                     best_analysis = None
                     min_time_diff = float('inf')
                     
-                    # TODO: MODIFICAR ESTRUCTURA DE DATOS DE ANÁLISIS DE CHUNK PARA INCLUIR TIMESTAMP
-                    # TODO: Y LUEGO ADAPTAR ESTE BLOQUE A LA NUEVA ESTRUCTURA
-                    # En una implementación real, tendríamos análisis almacenados por timestamp
-                    # Por ahora, intentamos obtener de la cola si hay disponible
-                    try:
-                        while not analysis_queue.empty():
-                            analysis_candidate = analysis_queue.get_nowait()
-                            if analysis_candidate != "END_OF_STREAM":
-                                time_diff = abs(analysis_candidate.analysis_timestamp - current_time)
-                                if time_diff < min_time_diff:
-                                    min_time_diff = time_diff
-                                    best_analysis = analysis_candidate
-                    except asyncio.QueueEmpty:
-                        pass
+                    all_analyses = processed_analysis_data.get(session_id, [])
+                    
+                    for analysis in all_analyses:
+                        time_diff = abs(analysis.analysis_timestamp - current_time)
+                        if time_diff < min_time_diff:
+                            min_time_diff = time_diff
+                            best_analysis = analysis
                     
                     if best_analysis:
                         message = WebSocketMessage(type="audio_analysis", data=best_analysis.model_dump())
                         await websocket.send_text(message.to_json())
                 
-                elif message_json.get("action") == "get_analysis":
-                    # Mantener compatibilidad con método anterior
-                    try:
-                        analysis_to_send: AudioAnalysisMessage = analysis_queue.get_nowait()
-                        
-                        if analysis_to_send == "END_OF_STREAM":
-                            status.status = "completed"
-                            await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                            await analysis_queue.put("END_OF_STREAM")
-                            break
-                        else:
-                            message = WebSocketMessage(type="audio_analysis", data=analysis_to_send.model_dump())
-                            await websocket.send_text(message.to_json())
-                            
-                            await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                    except asyncio.QueueEmpty:
-                        pass
                         
             except asyncio.TimeoutError:
-                # Si no hay mensaje del cliente, chequear si hay datos nuevos disponibles
-                
-                # Enviar chunks individuales si están disponibles
-                try:
-                    while not chunk_queue.empty():
-                        chunk_to_send: AudioChunkData = chunk_queue.get_nowait()
-                        
-                        if chunk_to_send == "END_OF_STREAM":
-                            status.status = "completed"
-                            await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                            await chunk_queue.put("END_OF_STREAM")  # Poner de vuelta
-                            break
-                        else:
-                            message = WebSocketMessage(type="chunk_data", data=chunk_to_send.model_dump())
-                            await websocket.send_text(message.to_json())
-                            
-                except asyncio.QueueEmpty:
-                    pass
-                
-                # Enviar análisis completos si están disponibles
-                try:
-                    while not analysis_queue.empty():
-                        analysis_to_send: AudioAnalysisMessage = analysis_queue.get_nowait()
-                        
-                        if analysis_to_send == "END_OF_STREAM":
-                            status.status = "completed"
-                            await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                            await analysis_queue.put("END_OF_STREAM")  # Poner de vuelta
-                            break
-                        else:
-                            message = WebSocketMessage(type="audio_analysis", data=analysis_to_send.model_dump())
-                            await websocket.send_text(message.to_json())
-                            
-                            # Enviar actualización de estado
-                            await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                            
-                except asyncio.QueueEmpty:
-                    pass
-                
-                # Chequear si la tarea de procesamiento terminó
+                # Check if processing task is complete
                 if session_data["task"].done():
-                    if chunk_queue.empty() and analysis_queue.empty():
-                        status.status = "completed"
-                        await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
-                        break
+                    status.status = "completed"
+                    await websocket.send_text(WebSocketMessage(type="status", data=status.model_dump()).to_json())
+                    break
 
     except WebSocketDisconnect:
         print(f"WebSocket desconectado para sesión {session_id}")
@@ -303,7 +264,7 @@ async def get_audio_file(session_id: str):
 
 
 async def _processing_task(session_id: str):
-    """Tarea en segundo plano para procesar el audio, hacer análisis y llenar las colas."""
+    """Tarea en segundo plano para procesar el audio y generar análisis."""
     print(f"Tarea de procesamiento iniciada para la sesión: {session_id}")
     session_data = current_sessions.get(session_id)
     
@@ -314,8 +275,6 @@ async def _processing_task(session_id: str):
     audio_data = session_data["audio_data"]
     sample_rate = session_data["sample_rate"]
     status: AudioProcessingStatus = session_data["status"]
-    chunk_queue: asyncio.Queue = session_data["chunk_queue"]
-    analysis_queue: asyncio.Queue = session_data["analysis_queue"]
     analyzer: AudioAnalyzer = session_data["analyzer"]
     
     try:
@@ -323,16 +282,13 @@ async def _processing_task(session_id: str):
         
         chunk_counter = 0
         
-        # Bucle para consumir el generador y llenar las colas
+        # Bucle para consumir el generador y procesar datos
         for chunk_data in chunk_generator:
             # Guardar el chunk en almacenamiento permanente
             processed_audio_data[session_id].append(chunk_data)
             
             # Añadir chunk al analizador
             analyzer.add_chunk(chunk_data)
-            
-            # Poner el chunk individual en la cola
-            await chunk_queue.put(chunk_data)
             
             # Cada 5 chunks (1 segundo), hacer análisis completo
             chunk_counter += 1
@@ -348,8 +304,8 @@ async def _processing_task(session_id: str):
                         chunks_analyzed=chunk_counter
                     )
                     
-                    # Poner el análisis en su cola
-                    await analysis_queue.put(analysis_message)
+                    # Guardar el análisis en almacenamiento permanente
+                    processed_analysis_data[session_id].append(analysis_message)
                     
                     print(f"Análisis completo generado en el chunk {chunk_counter} (timestamp: {chunk_data.timestamp:.2f}s)")
             
@@ -374,12 +330,9 @@ async def _processing_task(session_id: str):
                     chunks_analyzed=chunk_counter
                 )
                 
-                await analysis_queue.put(analysis_message)
+                # Guardar el análisis final en almacenamiento permanente
+                processed_analysis_data[session_id].append(analysis_message)
                 print(f"Análisis final generado con {chunk_counter} chunks totales")
-
-        # Marcar las colas como terminadas
-        await chunk_queue.put("END_OF_STREAM")
-        await analysis_queue.put("END_OF_STREAM")
         
         print(f"Procesamiento completo para la sesión: {session_id}")
         print(f"Total de chunks procesados: {chunk_counter}")
@@ -390,8 +343,6 @@ async def _processing_task(session_id: str):
         raise # Propagar la cancelación
     except Exception as e:
         print(f"Error en la tarea de procesamiento de la sesión {session_id}: {e}")
-        await chunk_queue.put({"type": "error", "data": {"message": str(e)}})
-        await analysis_queue.put({"type": "error", "data": {"message": str(e)}})
 
 
 async def _cleanup_session(session_id: str):
@@ -416,4 +367,6 @@ async def _cleanup_session(session_id: str):
         del current_sessions[session_id]
         if session_id in processed_audio_data:
             del processed_audio_data[session_id]
+        if session_id in processed_analysis_data:
+            del processed_analysis_data[session_id]
         print(f"Sesión '{session_id}' limpiada.")
