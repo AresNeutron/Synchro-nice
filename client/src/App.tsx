@@ -4,9 +4,10 @@ import Visualizer from "./components/AudioVisualizer"
 import UserMessages from "./components/UserMessages"
 import { useAppContext } from "./hooks/useAppContext"
 import { Music, Waves, Headphones } from 'lucide-react'
+import { APPSTATE } from "./types"
 
 function App() {
-  const { isConnected } = useAppContext()
+  const {appState} = useAppContext()
 
   return (
     <div className="min-h-screen p-4">
@@ -59,7 +60,7 @@ function App() {
 
           {/* Right Column - Visualizer (Large) */}
           <div className="flex-1">
-            {isConnected ? (
+            {appState == APPSTATE.PLAYING ? (
               <div className="visualizer-container h-full">
                 <div className="flex items-center gap-2 mb-3">
                   <Waves className="w-4 h-4 text-teal-400" />
