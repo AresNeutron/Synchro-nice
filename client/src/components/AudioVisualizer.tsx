@@ -1,130 +1,199 @@
-import type React from "react"
-import { useRef, useEffect, useState } from "react"
-import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { useAppContext } from "../hooks/useAppContext"
-import { APPSTATE, initialVisualizerState, type AudioChunkData } from "../types"
-import * as THREE from "three"
-import { initializeParticles, type Particle } from "../utils/initParticles"
+import type React from "react";
+import { useRef, useEffect, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useAppContext } from "../hooks/useAppContext";
+import { APPSTATE, type AudioChunkData, type AudioAnalysisMessage } from "../types";
+import * as THREE from "three";
+import { initializeParticles, updateParticle, type Particle } from "../utils/initParticles";
+import { interpolateAudioData, getCameraMovement, getAnimationTiming } from "../utils/animationHelpers";
+import { applyBoundaryConstraints } from "../utils/spatialMapping";
 
+/**
+ * Synchronized audio visualizer with proper timeline integration
+ */
+function SynestheticVisualizer() {
+  const { appState,audioChunks,  getChunkByTimestamp, getAnalysisByTimestamp } = useAppContext();
+  const groupRef = useRef<THREE.Group>(null);
+  const particlesRef = useRef<Particle[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
 
-function ParticleEqualizer() {
-  const { audioChunks: chunks } = useAppContext()
-  const groupRef = useRef<THREE.Group>(null)
-  const particlesRef = useRef<Particle[]>([])
-  const [visualizerState, setVisualizerState] = useState<AudioChunkData>(initialVisualizerState);
-  const [hasInitializedParticles, setHasInitializedParticles] = useState(false);
-
+  // Get reference to the audio element for synchronization
   useEffect(() => {
-    if (chunks.length > 0) {
-      const latestChunk = chunks[0]
-      console.log('✅ New audio chunk received:', latestChunk.timestamp);
-      setVisualizerState((prevState) => {
-        return {
-          timestamp: latestChunk.timestamp,
-          frequencies: latestChunk.frequencies.map((freq, i) =>
-            THREE.MathUtils.lerp(prevState.frequencies[i] || 0, freq, 0.3),
-          ),
-          amplitude: THREE.MathUtils.lerp(prevState.amplitude, latestChunk.amplitude, 0.2),
-          brightness: THREE.MathUtils.lerp(prevState.brightness, latestChunk.brightness, 0.1),
-          energy_center: THREE.MathUtils.lerp(prevState.energy_center, latestChunk.energy_center, 0.1),
-          is_percussive: latestChunk.is_percussive,
-          rolloff: THREE.MathUtils.lerp(prevState.rolloff, latestChunk.rolloff, 0.1),
-          zero_crossing_rate: THREE.MathUtils.lerp(prevState.zero_crossing_rate, latestChunk.zero_crossing_rate, 0.1),
-          spectral_flatness: THREE.MathUtils.lerp(prevState.spectral_flatness, latestChunk.spectral_flatness, 0.1),
-          chroma_features: latestChunk.chroma_features.map((chroma, i) =>
-            THREE.MathUtils.lerp(prevState.chroma_features[i] || 0, chroma, 0.2),
-          ),
-          beat_strength: THREE.MathUtils.lerp(prevState.beat_strength, latestChunk.beat_strength, 0.3),
-          tempo: THREE.MathUtils.lerp(prevState.tempo, latestChunk.tempo, 0.05),
-        }
-      })
+    const audioElement = document.querySelector('audio') as HTMLAudioElement;
+    if (audioElement) {
+      audioElementRef.current = audioElement;
     }
-  }, [chunks])
+  }, []);
 
-  // UseEffect para inicializar partículas UNA SOLA VEZ
+  // Initialize particles when we have audio data
   useEffect(() => {
-    if (chunks.length > 0 && !hasInitializedParticles) {
-      console.log('✨ Initializing particles with first chunk data');
-      const newParticles = initializeParticles(chunks[0]);
-      particlesRef.current = newParticles;
-      setHasInitializedParticles(true);
+    console.log('🔍 Initialization check:', {
+      audioChunksLength: audioChunks.length,
+      isInitialized,
+      appState,
+      isPlaying: appState === APPSTATE.PLAYING
+    });
+    
+    if (audioChunks.length > 0 && !isInitialized) {
+      console.log('🎨 Initializing synesthetic visualizer with', audioChunks.length, 'chunks');
+      const initialChunk = audioChunks[0];
+      particlesRef.current = initializeParticles(initialChunk);
+      setIsInitialized(true);
     }
-  }, [chunks, hasInitializedParticles]);
+  }, [audioChunks, isInitialized, appState]);
 
-  useFrame(() => {
-    if (!groupRef.current || particlesRef.current.length === 0) {
-      console.log('🚫 Skipping frame: Group or particles not ready.');
+  // Main animation loop with perfect synchronization
+  useFrame((state) => {
+    if (!groupRef.current || !audioElementRef.current || particlesRef.current.length === 0 || appState !== APPSTATE.PLAYING) {
       return;
     }
 
+    const currentTime = audioElementRef.current.currentTime;
+    const deltaTime = state.clock.getElapsedTime() - lastUpdateTimeRef.current;
+    lastUpdateTimeRef.current = state.clock.getElapsedTime();
+
+    // Get synchronized audio data
+    const currentChunk = getChunkByTimestamp(currentTime);
+    const nextChunk = getChunkByTimestamp(currentTime + 0.2); // Next chunk for interpolation
+    const currentAnalysis = getAnalysisByTimestamp(currentTime);
+
+    if (!currentChunk) {
+      return; // No data available for current time
+    }
+
+    // Interpolate between chunks for smooth 60fps animation
+    const chunkProgress = (currentTime % 0.2) / 0.2; // 0-1 within current chunk
+    const interpolatedChunk = interpolateAudioData(currentChunk, nextChunk, chunkProgress);
+
+    // Update all particles with current audio data
+    updateParticles(interpolatedChunk, currentAnalysis, deltaTime);
+
+    // Update global scene effects
+    updateSceneEffects(groupRef.current, interpolatedChunk, currentAnalysis, state.clock.elapsedTime);
+  });
+
+  /**
+   * Updates all particles based on current audio data
+   */
+  const updateParticles = (
+    chunk: AudioChunkData, 
+    analysis: AudioAnalysisMessage | null,
+    deltaTime: number
+  ) => {
+    const timing = getAnimationTiming(chunk);
+    
     particlesRef.current.forEach((particle) => {
-      if (!particle.mesh) {
-        console.warn('⚠️ Particle without mesh found, skipping animation.');
-        return;
+      if (!particle.mesh) return;
+
+      // Update particle properties based on audio data
+      updateParticle(particle, chunk, deltaTime);
+
+      // Apply size scaling with beat pulsing
+      const pulseScale = 1 + Math.sin(particle.pulsePhase * Math.PI * 2) * 0.2 * timing.pulseIntensity;
+      particle.mesh.scale.setScalar(particle.currentSize * pulseScale);
+
+      // Update particle color
+      const material = particle.mesh.material as THREE.MeshBasicMaterial;
+      material.color.copy(particle.color);
+      material.opacity = particle.opacity;
+
+      // Update particle position with physics
+      updateParticlePhysics(particle, chunk, analysis, deltaTime, timing);
+
+      // Apply position to mesh
+      particle.mesh.position.copy(particle.position);
+    });
+  };
+
+  /**
+   * Updates particle physics and movement
+   */
+  const updateParticlePhysics = (
+    particle: Particle,
+    chunk: AudioChunkData,
+    analysis: AudioAnalysisMessage | null,
+    deltaTime: number,
+    timing: { baseSpeed: number; pulseIntensity: number; rhythmPhase: number }
+  ) => {
+    const frequencyAmplitude = chunk.frequencies[particle.frequencyBand] || 0;
+
+    // Energy-based movement
+    const energyForce = frequencyAmplitude * chunk.amplitude * 0.05;
+    const energyDirection = new THREE.Vector3(0, 1, 0); // Upward for high energy
+    
+    // Beat-driven impulses
+    if (chunk.is_percussive && timing.pulseIntensity > 0.5) {
+      const beatImpulse = new THREE.Vector3(
+        (Math.random() - 0.5) * timing.pulseIntensity * 0.1,
+        Math.random() * timing.pulseIntensity * 0.15,
+        (Math.random() - 0.5) * timing.pulseIntensity * 0.1
+      );
+      particle.velocity.add(beatImpulse);
+    }
+
+    // Analysis-based forces
+    if (analysis) {
+      const { trends, transitions } = analysis.relationships;
+      
+      // Energy direction influence
+      switch (transitions.energy_direction) {
+        case 'increasing':
+          particle.velocity.y += 0.01;
+          break;
+        case 'decreasing':
+          particle.velocity.y -= 0.01;
+          break;
       }
 
-      const frequencyValue = visualizerState.frequencies[particle.frequencyBand] || 0
+      // Volatility affects movement chaos
+      const chaosForce = trends.volatility * 0.02;
+      particle.velocity.add(new THREE.Vector3(
+        (Math.random() - 0.5) * chaosForce,
+        (Math.random() - 0.5) * chaosForce,
+        (Math.random() - 0.5) * chaosForce
+      ));
+    }
 
-      const frequencyMultiplier = 1 + frequencyValue * visualizerState.amplitude * 8
-      particle.targetSize = particle.baseSize * frequencyMultiplier
+    // Apply forces
+    particle.velocity.add(energyDirection.multiplyScalar(energyForce));
 
-      particle.currentSize = THREE.MathUtils.lerp(particle.currentSize, particle.targetSize, 0.15)
-      particle.mesh.scale.setScalar(particle.currentSize)
+    // Update position
+    particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime * timing.baseSpeed * 60));
 
-      const hue = (particle.frequencyBand / 20) * 0.8 + visualizerState.brightness * 0.3
-      const saturation = 0.7 + visualizerState.spectral_flatness * 0.3
-      const lightness = 0.3 + frequencyValue * 0.6 + visualizerState.amplitude * 0.3
+    // Apply boundary constraints
+    const constraintResult = applyBoundaryConstraints(particle.position, particle.velocity);
+    particle.position.copy(constraintResult.position);
+    particle.velocity.copy(constraintResult.velocity);
 
-      const dominantChroma = visualizerState.chroma_features.indexOf(Math.max(...visualizerState.chroma_features))
-      if (dominantChroma !== -1) {
-        const chromaInfluence = visualizerState.chroma_features[dominantChroma] * 0.3
-        particle.color.setHSL((hue + dominantChroma * 0.08) % 1, saturation, lightness + chromaInfluence)
-      } else {
-        particle.color.setHSL(hue, saturation, lightness)
-      }
+    // Apply damping
+    particle.velocity.multiplyScalar(0.98);
+  };
 
-      const material = particle.mesh.material as THREE.MeshBasicMaterial
-      material.color.copy(particle.color)
+  /**
+   * Updates global scene effects
+   */
+  const updateSceneEffects = (
+    group: THREE.Group,
+    chunk: AudioChunkData,
+    analysis: AudioAnalysisMessage | null,
+    elapsedTime: number
+  ) => {
+    // Rotate entire scene based on tempo
+    const rotationSpeed = (chunk.tempo / 120) * 0.0005;
+    group.rotation.y += rotationSpeed;
 
-      const tempoMultiplier = (visualizerState.tempo / 120) * 0.5 + 0.5
+    // Scale scene slightly based on overall energy
+    const scaleVariation = 1 + chunk.amplitude * 0.05;
+    group.scale.setScalar(scaleVariation);
 
-      if (visualizerState.is_percussive && Math.random() < visualizerState.beat_strength * 0.3) {
-        particle.velocity.x += (Math.random() - 0.5) * 0.05 * visualizerState.beat_strength
-        particle.velocity.y += (Math.random() - 0.5) * 0.05 * visualizerState.beat_strength
-        particle.velocity.z += (Math.random() - 0.5) * 0.05 * visualizerState.beat_strength
-      }
+    // Add subtle breathing effect
+    const breathScale = 1 + Math.sin(elapsedTime * 0.5) * 0.02;
+    group.scale.multiplyScalar(breathScale);
+  };
 
-      const frequencyForce = frequencyValue * 0.02
-      particle.velocity.y += frequencyForce * (particle.frequencyBand < 10 ? 1 : -1)
-
-      particle.position.add(particle.velocity.clone().multiplyScalar(tempoMultiplier * (1 + visualizerState.amplitude)))
-
-      particle.mesh.position.copy(particle.position)
-
-      const boundarySize = 8
-      if (Math.abs(particle.position.x) > boundarySize) {
-        particle.velocity.x *= -0.8
-        particle.position.x = Math.sign(particle.position.x) * boundarySize
-      }
-      if (Math.abs(particle.position.y) > boundarySize) {
-        particle.velocity.y *= -0.8
-        particle.position.y = Math.sign(particle.position.y) * boundarySize
-      }
-      if (Math.abs(particle.position.z) > boundarySize) {
-        particle.velocity.z *= -0.8
-        particle.position.z = Math.sign(particle.position.z) * boundarySize
-      }
-
-      particle.velocity.multiplyScalar(0.98)
-
-      particle.velocity.add(
-        new THREE.Vector3((Math.random() - 0.5) * 0.001, (Math.random() - 0.5) * 0.001, (Math.random() - 0.5) * 0.001),
-      )
-    })
-
-    groupRef.current.rotation.y += 0.002 * (visualizerState.tempo / 120)
-  })
-
+  // Render particles
   return (
     <group ref={groupRef}>
       {particlesRef.current.map((particle) => (
@@ -132,75 +201,181 @@ function ParticleEqualizer() {
           key={particle.id}
           ref={(mesh) => {
             if (mesh) {
-              particle.mesh = mesh
-              mesh.position.copy(particle.position)
+              particle.mesh = mesh;
+              mesh.position.copy(particle.position);
             }
           }}
         >
-          <sphereGeometry args={[1, 8, 8]} />
-          <meshBasicMaterial transparent opacity={0.8} />
+          {/* Layer-specific geometry */}
+          {particle.layer === 'foundation' && <boxGeometry args={[1, 1, 1]} />}
+          {particle.layer === 'harmony' && <sphereGeometry args={[1, 12, 8]} />}
+          {particle.layer === 'atmosphere' && <octahedronGeometry args={[1, 2]} />}
+          
+          <meshBasicMaterial 
+            transparent 
+            opacity={particle.opacity}
+            color={particle.color}
+          />
         </mesh>
       ))}
     </group>
-  )
+  );
 }
 
-function CameraController() {
-  const { camera } = useThree()
+/**
+ * Dynamic camera controller based on audio analysis
+ */
+function SynestheticCamera() {
+  const { camera } = useThree();
+  const { getChunkByTimestamp, getAnalysisByTimestamp } = useAppContext();
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audioElement = document.querySelector('audio') as HTMLAudioElement;
+    if (audioElement) {
+      audioElementRef.current = audioElement;
+    }
+  }, []);
+
+  useFrame((state) => {
+    if (!audioElementRef.current) return;
+
+    const currentTime = audioElementRef.current.currentTime;
+    const currentChunk = getChunkByTimestamp(currentTime);
+    const currentAnalysis = getAnalysisByTimestamp(currentTime);
+
+    if (!currentChunk) return;
+
+    // Get camera movement based on audio analysis
+    const cameraMovement = getCameraMovement(currentAnalysis, currentChunk, state.clock.elapsedTime);
+    
+    // Smooth camera transitions
+    camera.position.lerp(cameraMovement.position, 0.02);
+    camera.lookAt(cameraMovement.lookAt);
+    
+    // Update FOV only for perspective cameras
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.fov = THREE.MathUtils.lerp(camera.fov, cameraMovement.fov, 0.05);
+      camera.updateProjectionMatrix();
+    }
+  });
+
+  return null;
+}
+
+/**
+ * Scene lighting that responds to audio
+ */
+function SynestheticLighting() {
+  const { getChunkByTimestamp } = useAppContext();
+  const lightRef = useRef<THREE.PointLight>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audioElement = document.querySelector('audio') as HTMLAudioElement;
+    if (audioElement) {
+      audioElementRef.current = audioElement;
+    }
+  }, []);
 
   useFrame(() => {
-    const time = Date.now() * 0.0005
-    camera.position.x = Math.cos(time) * 12
-    camera.position.z = Math.sin(time) * 12
-    camera.position.y = Math.sin(time * 0.5) * 3
-    camera.lookAt(0, 0, 0)
-  })
+    if (!lightRef.current || !audioElementRef.current) return;
 
-  return null
+    const currentTime = audioElementRef.current.currentTime;
+    const chunk = getChunkByTimestamp(currentTime);
+    
+    if (!chunk) return;
+
+    // Adjust light intensity based on amplitude
+    lightRef.current.intensity = 0.5 + chunk.amplitude * 1.5;
+    
+    // Move light based on energy center
+    const energyHeight = (chunk.energy_center / 20000) * 8;
+    lightRef.current.position.y = energyHeight;
+    
+    // Color based on brightness
+    const warmth = 1 - chunk.brightness;
+    lightRef.current.color.setRGB(
+      1,
+      0.8 + warmth * 0.2,
+      0.6 + warmth * 0.4
+    );
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.2} />
+      <pointLight ref={lightRef} position={[0, 3, 0]} intensity={1} />
+    </>
+  );
 }
 
+/**
+ * Complete visualizer scene
+ */
 function VisualizerScene() {
   return (
     <>
-      <CameraController />
-      <ambientLight intensity={0.4} />
-      <pointLight position={[10, 10, 10]} intensity={0.6} />
-
-      <ParticleEqualizer />
-
-      <mesh position={[0, 0, -15]} scale={[30, 30, 1]}>
+      <SynestheticCamera />
+      <SynestheticLighting />
+      <SynestheticVisualizer />
+      
+      {/* Background */}
+      <mesh position={[0, 0, -20]} scale={[50, 50, 1]}>
         <planeGeometry />
         <meshBasicMaterial color="#0a0a0a" />
       </mesh>
     </>
-  )
+  );
 }
 
-const Visualizer: React.FC = () => {
-  const {appState } = useAppContext()
+/**
+ * Main AudioVisualizer component
+ */
+const AudioVisualizer: React.FC = () => {
+  const { appState, loadingProgress } = useAppContext();
 
-  if (appState !== APPSTATE.PLAYING) {
+  // Show loading state
+  if (!loadingProgress.isComplete) {
     return (
       <div className="w-full h-96 bg-gray-900 rounded-lg flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-400/20 flex items-center justify-center">
-            <div className="w-8 h-8 bg-purple-400 rounded-full animate-pulse"></div>
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-400/20 flex items-center justify-center">
+            <div className="w-8 h-8 bg-blue-400 rounded-full animate-pulse"></div>
           </div>
-          <p className="text-gray-400">
-            Press play to start visualization
+          <p className="text-gray-400">Loading audio data...</p>
+          <p className="text-sm text-gray-500">
+            {loadingProgress.chunks} chunks, {loadingProgress.analysis} analysis
           </p>
         </div>
       </div>
-    )
+    );
   }
 
+  // Always render Canvas once data is ready, but show overlay when not playing
   return (
-    <div className="w-full h-full rounded-lg overflow-hidden bg-black">
-      <Canvas camera={{ position: [12, 0, 0], fov: 75 }} gl={{ antialias: true }}>
+    <div className="w-full h-full rounded-lg overflow-hidden bg-black relative">
+      <Canvas 
+        camera={{ position: [15, 5, 15], fov: 75 }} 
+        gl={{ antialias: true, alpha: false }}
+      >
         <VisualizerScene />
       </Canvas>
+      
+      {/* Show ready state overlay when not playing */}
+      {appState !== APPSTATE.PLAYING && appState !== APPSTATE.PAUSED && (
+        <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-400/20 flex items-center justify-center">
+              <div className="w-8 h-8 bg-green-400 rounded-full"></div>
+            </div>
+            <p className="text-gray-400">Press play to start synesthetic visualization</p>
+            <p className="text-sm text-gray-500">Ready for audio-visual synesthesia</p>
+          </div>
+        </div>
+      )}
     </div>
-  )
-}
+  );
+};
 
-export default Visualizer
+export default AudioVisualizer;
