@@ -62,7 +62,7 @@ export function createSpatialVelocity(
   const beatImpulse = chunk.is_percussive ? chunk.beat_strength * 0.08 : 0;
   
   // Energy direction from analysis (if available)
-  let energyDirection = new THREE.Vector3(0, 0, 0);
+  const energyDirection = new THREE.Vector3(0, 0, 0);
   if (analysis) {
     switch (analysis.relationships.trends.overall_energy_trend) {
       case 1: // increasing

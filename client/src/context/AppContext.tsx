@@ -21,47 +21,6 @@ export default function AppProvider({ children }: { children: ReactNode }) {
     isComplete: false
   });
 
-
-  const uploadFile = useCallback(
-    async (file: File) => {
-      setAppState(APPSTATE.UPLOADING);
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      try {
-        const response = await fetch(backend_url + "/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error("Error uploading the file");
-        }
-
-        const uploadResponse: UploadResponse = await response.json();
-
-        setFileInfo(uploadResponse.file_info);
-        setSessionId(uploadResponse.session_id);
-        
-        // Start progressive loading of audio data
-        if (uploadResponse.processing_complete) {
-          await loadCompleteAudioData(uploadResponse.session_id, uploadResponse.total_chunks, uploadResponse.total_analysis);
-        }
-
-        // We must provide a message to the user to tell them the upload was successful
-        setAppState(APPSTATE.ISREADY)
-        // such a message would trigger when "appState" variable is set to ISREADY
-
-      } catch (err) {
-        console.error("Upload error:", err);
-        setAppState(APPSTATE.SERVER_ERROR);
-        throw err;
-      }
-    },
-    []
-  );
-  
   // Progressive loading of complete audio dataset
   const loadCompleteAudioData = useCallback(async (sessionId: string, totalChunks: number, totalAnalysis: number) => {
     // Set total values for progress calculation
@@ -135,6 +94,46 @@ export default function AppProvider({ children }: { children: ReactNode }) {
       setAppState(APPSTATE.SERVER_ERROR);
     }
   }, []);
+
+  const uploadFile = useCallback(
+    async (file: File) => {
+      setAppState(APPSTATE.UPLOADING);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch(backend_url + "/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Error uploading the file");
+        }
+
+        const uploadResponse: UploadResponse = await response.json();
+
+        setFileInfo(uploadResponse.file_info);
+        setSessionId(uploadResponse.session_id);
+        
+        // Start progressive loading of audio data
+        if (uploadResponse.processing_complete) {
+          await loadCompleteAudioData(uploadResponse.session_id, uploadResponse.total_chunks, uploadResponse.total_analysis);
+        }
+
+        // We must provide a message to the user to tell them the upload was successful
+        setAppState(APPSTATE.ISREADY)
+        // such a message would trigger when "appState" variable is set to ISREADY
+
+      } catch (err) {
+        console.error("Upload error:", err);
+        setAppState(APPSTATE.SERVER_ERROR);
+        throw err;
+      }
+    },
+      [loadCompleteAudioData]
+  );
   
   // Timestamp-based chunk retrieval for perfect synchronization
   const getChunkByTimestamp = useCallback((timestamp: number): AudioChunkData | null => {

@@ -177,7 +177,7 @@ function SynestheticVisualizer() {
   const updateSceneEffects = (
     group: THREE.Group,
     chunk: AudioChunkData,
-    analysis: AudioAnalysisMessage | null,
+    _analysis: AudioAnalysisMessage | null,
     elapsedTime: number
   ) => {
     // Rotate entire scene based on tempo

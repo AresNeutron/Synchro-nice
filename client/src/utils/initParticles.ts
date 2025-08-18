@@ -100,8 +100,8 @@ function createLayerParticle(
   id: number,
   layer: 'foundation' | 'harmony' | 'atmosphere',
   frequencyBand: number,
-  layerIndex: number,
-  layerTotal: number,
+  _layerIndex: number,
+  _layerTotal: number,
   chunk: AudioChunkData
 ): Particle {
   // Get frequency-specific amplitude
@@ -128,7 +128,7 @@ function createLayerParticle(
   const color = createSynestheticColor(chunk);
   
   // Layer-specific color adjustments
-  adjustColorForLayer(color, layer, chunk);
+    adjustColorForLayer(color, layer);
   
   // Calculate harmonic resonance based on chroma features
   const chromaColor = getChromaColor(chunk.chroma_features);
@@ -202,7 +202,6 @@ function getLayerConfig(layer: 'foundation' | 'harmony' | 'atmosphere') {
 function adjustColorForLayer(
   color: THREE.Color,
   layer: 'foundation' | 'harmony' | 'atmosphere',
-  chunk: AudioChunkData
 ) {
   const hsl = { h: 0, s: 0, l: 0 };
   color.getHSL(hsl);
@@ -260,7 +259,7 @@ export function updateParticle(
   
   // Update color based on current audio state
   particle.targetColor = createSynestheticColor(chunk);
-  adjustColorForLayer(particle.targetColor, particle.layer, chunk);
+  adjustColorForLayer(particle.targetColor, particle.layer);
   
   // Smooth color transitions
   const colorLerpFactor = Math.min(deltaTime * 4, 1);
