@@ -4,6 +4,7 @@ import { APPSTATE } from "../types";
 import { useAppContext } from "../hooks/useAppContext";
 import {
   Play,
+  Pause,
   Volume2,
   VolumeX,
   Loader2,
@@ -20,11 +21,23 @@ const AudioPlayer: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasStartedPlaying, setHasStartedPlaying] = useState(false);
 
-  const handlePlay = () => {
-    if (audioRef.current && !hasStartedPlaying) {
-      audioRef.current.play();
-      setAppState(APPSTATE.PLAYING);
-      setHasStartedPlaying(true);
+  const handlePlayPause = () => {
+    if (audioRef.current) {
+      if (!hasStartedPlaying) {
+        // First time playing
+        audioRef.current.play();
+        setAppState(APPSTATE.PLAYING);
+        setHasStartedPlaying(true);
+      } else {
+        // Toggle play/pause
+        if (isPlaying) {
+          audioRef.current.pause();
+          setAppState(APPSTATE.PAUSED);
+        } else {
+          audioRef.current.play();
+          setAppState(APPSTATE.PLAYING);
+        }
+      }
     }
   };
 
@@ -183,21 +196,21 @@ const AudioPlayer: React.FC = () => {
       {/* Controls */}
       <div className="flex items-center justify-center">
         <button
-          onClick={handlePlay}
-          disabled={!loadingProgress.isComplete || isLoading || hasStartedPlaying}
+          onClick={handlePlayPause}
+          disabled={!loadingProgress.isComplete || isLoading}
           className={`
             p-4 rounded-full smooth-transition disabled:opacity-50
             ${
-              hasStartedPlaying
-                ? "bg-purple-500/20 text-purple-400 cursor-not-allowed"
+              isPlaying
+                ? "bg-red-500/20 hover:bg-red-500/30 text-red-400"
                 : "bg-green-500/20 hover:bg-green-500/30 text-green-400"
             }
           `}
         >
           {isLoading ? (
             <Loader2 className="w-6 h-6 animate-spin" />
-          ) : hasStartedPlaying ? (
-            <Play className="w-6 h-6 ml-1 opacity-50" />
+          ) : isPlaying ? (
+            <Pause className="w-6 h-6" />
           ) : (
             <Play className="w-6 h-6 ml-1" />
           )}
@@ -264,7 +277,7 @@ const AudioPlayer: React.FC = () => {
               : isPlaying
               ? "Playing"
               : hasStartedPlaying
-              ? "Completed"
+              ? "Paused"
               : "Ready"}
           </span>
         </div>
