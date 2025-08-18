@@ -63,6 +63,18 @@ const AudioPlayer: React.FC = () => {
     setIsMuted(newVolume === 0);
   };
 
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (audioRef.current && duration > 0) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percentage = clickX / rect.width;
+      const newTime = percentage * duration;
+      
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
   const toggleMute = () => {
     if (audioRef.current) {
       if (isMuted) {
@@ -178,10 +190,12 @@ const AudioPlayer: React.FC = () => {
       <div className="space-y-2">
         <div className="relative">
           <div
-            className="w-full h-2 bg-gray-700 rounded-lg relative"
+            className="w-full h-2 bg-gray-700 rounded-lg relative cursor-pointer hover:h-3 transition-all duration-200"
+            onClick={handleSeek}
+            title="Click to seek"
           >
             <div 
-              className="h-full bg-purple-400 rounded-lg transition-all duration-200"
+              className="h-full bg-purple-400 rounded-lg transition-all duration-200 pointer-events-none"
               style={{ width: `${progress}%` }}
             />
           </div>
